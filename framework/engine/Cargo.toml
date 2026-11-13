@@ -17,12 +17,13 @@ bytemuck = { version = "1.25", features = ["derive"] }
 
 [dependencies]
 modelkit-kernel = { path = "crates/kernel" }
-modelkit-gpu = { path = "crates/gpu" }
 modelkit-anim = { path = "crates/anim" }
 modelkit-render = { path = "crates/render" }
+modelkit-cache = { path = "crates/cache" }
+modelkit-texels = { path = "crates/texels" }
+sh-paint = { path = "crates/sh-paint" }
+sh-shading = { path = "crates/sh-shading" }
 mlua = { version = "0.12", features = ["luau", "luau-jit"] }
-png = { workspace = true }
-bytemuck = { workspace = true }
 
 # Dependencies (Luau's C++ included) build optimized once; our own code stays
 # quick to rebuild but still fast enough to bake textures.

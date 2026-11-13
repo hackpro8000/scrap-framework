@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
-use crate::bake::{hash, parallel};
+use modelkit_kernel::kernel::{hash, parallel};
+use modelkit_kernel::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
+
 use crate::brush::stamp_alpha;
 use crate::coat::{self, Hand, Look, Wear};
-use crate::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
 
 // Raise this when the coat changes, so cached textures are repainted.
 pub const VERSION: f64 = 4.0;

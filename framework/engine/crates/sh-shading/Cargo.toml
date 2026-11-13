@@ -1,0 +1,11 @@
+[package]
+name = "sh-shading"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modelkit-kernel = { path = "../kernel" }
+modelkit-gpu = { path = "../gpu" }
+modelkit-cache = { path = "../cache" }
+modelkit-texels = { path = "../texels" }
+sh-paint = { path = "../sh-paint" }

@@ -11,9 +11,9 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-use crate::image::Image;
-use crate::kernel::within_reach;
-use crate::mesh::{Face, Mesh};
+use modelkit_kernel::image::Image;
+use modelkit_kernel::kernel::within_reach;
+use modelkit_kernel::mesh::{Face, Mesh};
 
 // Bump when the file layout or anything baked into it changes.
 const VERSION: u32 = 3;

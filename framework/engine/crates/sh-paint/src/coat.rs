@@ -4,9 +4,10 @@
 // round-brushed orange, dry-brushed flakes, chipped edges lined in, drips
 // pulled down the walls), then scratches lined in along worn edges.
 
-use crate::bake::{hash, to_linear};
+use modelkit_kernel::kernel::{hash, to_linear};
+use modelkit_kernel::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
+
 use crate::brush::{Brush, Canvas, Stroke};
-use crate::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
 
 // Colors in sRGB.
 const RUST_DARK: [f64; 3] = [0.3, 0.2, 0.12];

@@ -3,7 +3,8 @@
 // script picks one per brush slot and sets any of its numbers by name, so tuning
 // never rebuilds the engine.
 
-use crate::bake::hash;
+use modelkit_kernel::kernel::hash;
+
 use crate::brush::stamp_alpha;
 use crate::hand::settings;
 

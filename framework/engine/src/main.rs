@@ -44,13 +44,7 @@
 // below; this engine does the heavy, generic work (triangulating, export,
 // rendering) so scripts change without a recompile.
 
-mod bake;
-mod brush;
-mod cache;
-mod coat;
 mod glb;
-mod hand;
-mod marks;
 mod work;
 mod scene;
 
@@ -65,11 +59,14 @@ use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
 
 // The kernel crate's modules, named at the root so `crate::mesh::...` and the
 // like keep resolving in every module of this crate.
-use modelkit_kernel::{image, kernel, mesh, part, progress};
+use modelkit_kernel::{image, mesh, part, progress};
 // The plugin crates' modules, named at the root the same way.
 use modelkit_anim::anim;
-use modelkit_gpu::gpu;
+use modelkit_cache::cache;
 use modelkit_render::{detail, render};
+use modelkit_texels::texels;
+use sh_paint::{brush, coat, hand, marks};
+use sh_shading::bake;
 
 use image::Image;
 use mesh::{dot, scale, sub, Face, Mesh};
@@ -192,7 +189,7 @@ impl UserData for MeshHandle {
 		});
 		// Lays every face out in UV space, packed with a margin between charts.
 		methods.add_method("unwrap", |_, this, margin: Option<f64>| {
-			Ok(bake::unwrap(&mut this.0.borrow_mut(), margin.unwrap_or(0.01)))
+			Ok(texels::unwrap(&mut this.0.borrow_mut(), margin.unwrap_or(0.01)))
 		});
 		// Paints each texel the color fn(x, y, z, nx, ny, nz) returns for the
 		// surface point behind it, averaged over a 2×2 grid of points per texel
@@ -207,7 +204,7 @@ impl UserData for MeshHandle {
 				let image = image.borrow();
 				(image.width, image.height)
 			};
-			let samples = bake::samples(&this.0.borrow(), width, height, 2);
+			let samples = texels::samples(&this.0.borrow(), width, height, 2);
 			// `color` may return a fourth value, an opacity, which gives the
 			// image an alpha channel for a see-through part.
 			let mut sums = vec![[0.0f32; 5]; width * height];
@@ -231,9 +228,9 @@ impl UserData for MeshHandle {
 				}
 			}
 			let mut alpha_covered = covered.clone();
-			bake::dilate(&mut image.pixels, &mut covered, width, height, 8);
+			texels::dilate(&mut image.pixels, &mut covered, width, height, 8);
 			if has_alpha {
-				bake::dilate(&mut opacity, &mut alpha_covered, width, height, 8);
+				texels::dilate(&mut opacity, &mut alpha_covered, width, height, 8);
 				image.alpha = Some(opacity.into_iter().map(|a| a[0]).collect());
 			}
 			Ok(())
@@ -417,7 +414,7 @@ fn paint_part(name: &str, mesh: &Mesh, group: &[Rc<RefCell<Mesh>>], group_sizes:
 	let borrowed_group: Vec<_> = group.iter().map(|m| m.borrow()).collect();
 	let group_refs: Vec<&Mesh> = borrowed_group.iter().map(|m| &**m).collect();
 	let sampling = Instant::now();
-	let painted = bake::ImageSampler::new(mesh, &image.borrow());
+	let painted = texels::ImageSampler::new(mesh, &image.borrow());
 	cache::spent(cache::SAMPLER_MICROS, sampling);
 	let mut failed = None;
 	let mut base = |p: mesh::Vec3, n: mesh::Vec3| -> [f64; 3] {

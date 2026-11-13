@@ -7,9 +7,9 @@ use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::bake::hash;
-use crate::gpu::f32s;
-use crate::mesh::{add, dot, scale, sub, Vec3};
+use modelkit_gpu::gpu::f32s;
+use modelkit_kernel::kernel::hash;
+use modelkit_kernel::mesh::{add, dot, scale, sub, Vec3};
 
 // How far off the plane it was laid on a stroke still paints, so it bends
 // with a warped panel but stops short of a bolt or lip standing off it.
