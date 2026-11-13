@@ -129,18 +129,28 @@ Reasoned from reading the code; nothing was compiled. Some function bodies were 
 
 ## Status (kept current; newest first)
 
-2026-11-13
+2026-11-13 (evening)
 
-- Proof loop: `gh workflow run proof.yml --ref build -f ref=build` compiles the engine on a GitHub machine and compares 308 output files of 9 Scrap Heist models with `proof/scrap-heist/baseline.txt`. About 90 s when the compile is cached, 3.5 min after a crate change.
-- Engine slices 1-5: PROOF OK. The engine is a Cargo workspace: `modelkit-kernel`, `modelkit-gpu`, `modelkit-anim`, `modelkit-render` crates plus the binary. glTF (`glb.rs`, `scene.rs`) stays in the binary until the bake is split, because it reads the bake's roughness setting.
-- Slices 6-7 (cache, texels, Scrap Heist paint and shading crates): in progress. They sit under `framework/engine/crates/` for now; the style crates move to the proof game when the binary becomes game-owned.
-- Shared model helpers split from Scrap Heist's style: PROOF OK, and all 209 assembled model scripts byte-identical. Order is in the game's `art/style/assembly.txt`. Framework helpers still read style names directly (`WARP`, `WEAR`, `EDGE_HIGHLIGHT` and others) and `setLook` holds a default rust amount: needs a real kit interface later.
-- Done and committed on `build`: import from Scrap Heist `fa123338`; `framework/` layout; `game.toml` and readers; pipeline scripts; hive relocation and naming (28 hub tests pass); game code skeleton and model-helper specs (176 tests pass); agent rules and docs; pinned-copy commands (`framework-release.sh`, `framework-check.sh`, `framework-update.sh`, `init-game.sh`; 18 test cases pass).
-- In progress: the plain starter kit and example model at the repository root, with `starter.yml` to build it on GitHub.
-- Not started: engine slices 8-15 (registry and hooks, the two rewrites, plugin identity in cache keys); the game-owned engine binary that lists its plugins; the hive split into a model-free hive and the pipeline's hive plugin; running the hive from this repository; the first framework release (0.1.0); making `main` as one fresh commit.
-- Known faults carried over from Scrap Heist, not yet fixed here: `cloud-task.sh` passes arguments to `cloud-shard.sh` in the wrong order; `standby-previews.sh` copies normal maps from an empty path; `YardLayout` uses a `StorageCrate` model that has no source.
-- Deferred decisions: where `framework/studio/PlaceModels.luau` and the icon list in `item-icons.py` belong (both are mostly Scrap Heist logic).
-- Working rule: commit with an explicit file list (`git commit -m … -- <paths>`), because a plain commit also takes other workers' staged moves.
+- **Engine is a host plus plugins. PROOF OK (308 files).** Base crates in `framework/engine/crates/`: `kernel`, `gpu`, `anim`, `render`, `cache`, `texels`, `app` (the host: script API, command line, run phases, `Plugin` trait and `Registry`). No style code and no reference to a style crate under `framework/`. Each game is its own Cargo workspace (`Cargo.toml`, `engine/src/main.rs` listing its plugins, `art/plugins/*`). Scrap Heist's `sh-paint` and `sh-shading` are plugins in `proof/scrap-heist/art/plugins/`. Hooks today: mesh script methods, command-line flags, a cache-key suffix, the roughness written to glTF, timing lines. Guide: `framework/docs/plugins.md`.
+- **Starter builds on the style-free engine.** `starter.yml` built `ExampleCrate` with an engine that lists no plugins: flat colour only.
+- **Style kits.** Helpers in `framework/art/lib` are mechanics only; finishing, rusting and look-setting live in each game's `art/style`. Contract in `framework/art/lib/README.md`: a kit defines `WARP`, `SMOOTH_ANGLE`, `TEXTURE` and provides `setLook` and `finishParts`. All 209 Scrap Heist model scripts assemble byte-identical.
+- **Hive split.** `framework/hive/hub` and `agent` are generic (connections, leases, re-dealing, update, tasks); `framework/hive/pipeline` is the model pipeline's plugin (builds, previews, bake claims, engine unit, uploads), loaded through `hive_plugins` in `game.toml`. 30 of 30 cases pass, two of them with no plugin loaded. Not yet run on real machines from this repository.
+- **Checks.** `ci.yml` (Luau tests, hive tests, pinned-copy test, script syntax, no game names under `framework/`), `new-game.yml` (copies the template, runs `init-game.sh`, builds the example), `proof.yml`, `starter.yml`.
+- **Pinned copy.** `framework-release.sh`, `framework-check.sh`, `framework-update.sh`, `init-game.sh` (also removes this spec, `proof/` and the proof workflow from a new game). No release cut yet.
+- Proof loop: `gh workflow run proof.yml --ref build -f ref=build`. Starter: `gh workflow run starter.yml --ref build -f ref=build`.
+
+Not done:
+
+- A neutral bake in the base: the shading loop, edge and crease fields and layer logic are inside Scrap Heist's shading plugin. A second style has no shared bake to build on. Needs the generic layer loop rewrite, then splitting the `paintShading` options.
+- The base `gpu` crate still holds Scrap Heist's two shaders and their `Params` struct.
+- Plugin identity in bake cache keys.
+- Hooks not yet offered: run phases and output writers in general, preview look (backdrop, light, field of view are constants in `render`), plugin-registered commands.
+- The template has no shading at all without a plugin. Open question for the user: ship a small neutral edge-shading plugin as the example.
+- Running the hive (standby workflow, hub, machine agents) from this repository; cloud machines for it.
+- First framework release (0.1.0) and `MANIFEST`; `main` as one fresh commit; marking the repository as a GitHub template.
+- Faults carried over from Scrap Heist, not fixed: `cloud-task.sh` argument order; `standby-previews.sh` empty normal-map path; `YardLayout` uses a model with no source.
+- Deferred: `framework/studio/PlaceModels.luau` and the icon list in `item-icons.py` are mostly Scrap Heist logic and are on the names allow-list (`framework/.names-allowed`).
+- Working rule: commit with an explicit file list (`git commit -m … -- <paths>`).
 
 ## OPEN
 
