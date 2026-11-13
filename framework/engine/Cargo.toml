@@ -1,0 +1,32 @@
+# The engine's base crates: the host (crates/app, the modelkit-app library)
+# and the crates it is built from. No game and no style lives here: each game
+# is its own workspace whose small engine package (<game>/engine) builds the
+# modelkit binary from these crates and the game's plugins (<game>/art/plugins).
+# The base crates inherit from [workspace.dependencies] below even when a game
+# builds them, since Cargo resolves `workspace = true` against the workspace
+# that holds the crate. proof-base is an old engine copied in for a bake proof
+# (scripts/bake-proof.sh); it builds on its own.
+[workspace]
+members = ["crates/*"]
+exclude = ["proof-base"]
+resolver = "2"
+
+[workspace.dependencies]
+png = "0.17"
+bytemuck = { version = "1.25", features = ["derive"] }
+
+# Dependencies (Luau's C++ included) build optimized once; our own code stays
+# quick to rebuild but still fast enough to bake textures. Profiles apply only
+# from the workspace being built, so each game's Cargo.toml repeats these.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+# One optimisation pass over the whole engine instead of one per unit: a
+# slower compile, paid once per engine change, for a faster bake.
+lto = "thin"
+codegen-units = 1

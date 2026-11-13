@@ -1,0 +1,62 @@
+name: engine-check
+
+# Compiles the modelkit engine on a GitHub machine, so nothing compiles on the
+# user's computer. Started by framework/scripts/engine-check.sh for a pushed commit;
+# compile errors show in the run's log. With share=true a clean build is left
+# on the build-engine branch for every build machine to take.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch to compile
+        required: true
+      share:
+        description: Share the compiled engine on the build-engine branch
+        default: "false"
+      game:
+        description: The game whose engine to compile (its folder, from the repository root)
+        default: "."
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ inputs.game }}/target
+          key: engine-check-${{ inputs.game }}-${{ hashFiles(format('{0}/Cargo.lock', inputs.game)) }}
+      - name: Compile
+        env:
+          GAME_ROOT: ${{ inputs.game }}
+        run: |
+          if [ "${{ inputs.share }}" = "true" ]; then
+            cargo build --release --manifest-path "${GAME_ROOT}/Cargo.toml" -p engine 2>&1 | tee compile.log
+          else
+            cargo check --manifest-path "${GAME_ROOT}/Cargo.toml" 2>&1 | tee compile.log
+          fi
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: Share
+        if: inputs.share == 'true'
+        env:
+          FRAMEWORK: framework
+          GAME_ROOT: ${{ inputs.game }}
+        run: |
+          git config user.name "engine-check"
+          git config user.email "engine-check@users.noreply.github.com"
+          # The same hash framework/scripts/build-model.sh keeps.
+          source_sha="$({ (cd "${FRAMEWORK}/engine" && find crates Cargo.toml -type f | LC_ALL=C sort | xargs sha256sum) && (cd "${GAME_ROOT}" && find Cargo.toml Cargo.lock engine/src engine/Cargo.toml $(ls -d art/plugins 2> /dev/null) -type f | LC_ALL=C sort | xargs sha256sum); } | sha256sum | cut -c1-64)"
+          shared="$(mktemp -d)"
+          cp "${GAME_ROOT}/target/release/modelkit" "${shared}/modelkit-linux-x64"
+          echo "${source_sha}" > "${shared}/source-sha"
+          framework/scripts/push-folder.sh "${shared}" build-engine "engine ${source_sha:0:12}"

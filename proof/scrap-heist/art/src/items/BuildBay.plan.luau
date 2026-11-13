@@ -1,0 +1,147 @@
+-- Part plan for the remade BuildBay (art/concepts/build-bay-sketch.png): the
+-- yard's hatching bay, exactly 10 x 10 on the ground and 8.1 tall, where a
+-- capsule sits on a raised drum and is whacked open with the Big Spanner;
+-- raiders grab it from there. Origin at the middle of the footprint at
+-- ground level, z up, the front (toward the gate) on the -y side.
+--
+-- Three things the game fixes:
+--   - The capsule's seat is found by dropping a ray from above the bay's
+--     middle (PlotService.seatOf), so nothing may stand over x = 0, y = 0:
+--     the frame is on the back edge and the lamp arm stops 0.7 short. Only
+--     the Deck and Cradle cover the middle: the clamps are one part each and
+--     the lamps two parts, so no part reaches across the seat whatever
+--     collision shape Roblox gives it.
+--   - The art's bounding box is centred on the cells, so nothing reaches
+--     past the deck's 10 x 10.
+--   - Capsules sit on the seat with their bounding box: the widest is 3.6
+--     wide and 2.3 deep (corner 2.14 from the middle), the deepest 2.7, the
+--     tallest 3.4, so the clamps stay at radius 2.3 or more and the lamp's
+--     shade above z 5.3.
+return {
+	parts = {
+		{
+			name = "Deck",
+			level = "core",
+			at = { 0, 0, 0.25 },
+			size = { 10, 10, 0.5 },
+			note = "a concrete kerb exactly 10 by 10, a riveted dark steel deck on it with a chequer-plate top, a crisp hazard border and a painted ring round the drum",
+		},
+		{
+			name = "Cradle",
+			level = "major",
+			attaches = "Deck",
+			at = { 0, 0, 1.14 },
+			size = { 5.7, 5.7, 1.28 },
+			note = "a steel drum 2.6 in radius in the middle, flat on top at z 1.7 for the capsule's seat with a target painted on it, a low rubber ring round the top, a crisp hazard band, a bolted flange at its foot",
+		},
+		{
+			name = "Clamp1",
+			level = "major",
+			attaches = "Cradle",
+			at = { 0, 2.88, 1.93 },
+			size = { 1, 1.1, 2.9 },
+			note = "a cast bronze claw behind the capsule, with a rounded knuckle pinned between two steel lugs standing on the deck, tapering and curling in over the seat to its pad",
+		},
+		{ name = "Clamp2", level = "major", attaches = "Cradle", at = { -2.4, -1.4, 2.1 }, size = { 1, 0.9, 2.6 }, note = "the same claw on the front left" },
+		{ name = "Clamp3", level = "major", attaches = "Cradle", at = { 2.4, -1.4, 2.1 }, size = { 1, 0.9, 2.6 }, note = "the same claw on the front right" },
+		{ name = "Pad1", level = "detail", attaches = "Clamp1", at = { 0, 2.445, 3.18 }, size = { 0.62, 0.23, 0.46 }, note = "a solid rubber block on the claw's tip, standing proud of it, stopping at radius 2.33" },
+		{ name = "Pad2", level = "detail", attaches = "Clamp2", at = { -2.117, -1.22, 3.18 }, size = { 0.51, 0.65, 0.46 }, note = "the same pad on the front left claw" },
+		{ name = "Pad3", level = "detail", attaches = "Clamp3", at = { 2.117, -1.22, 3.18 }, size = { 0.51, 0.65, 0.46 }, note = "the same pad on the front right claw" },
+		{
+			name = "Frame",
+			level = "major",
+			attaches = "Deck",
+			at = { 0, 3.9, 4.1 },
+			size = { 8.8, 1.1, 7.2 },
+			note = "the back of the bay: two riveted box posts at x = -3.7 and 3.7 with a beam across them at z 6.6 to 7.5, two braces crossing behind the board, all on the back edge so the front stays open to the gate",
+		},
+		{
+			name = "Bands",
+			level = "detail",
+			attaches = "Frame",
+			at = { 0, 3.9, 3.55 },
+			size = { 8.5, 1.1, 6.1 },
+			note = "crisp cast-bronze bands round the foot and cap of each post",
+		},
+		{
+			name = "Board",
+			level = "major",
+			attaches = "Frame",
+			at = { 0, 3.9, 3.5 },
+			size = { 6.6, 0.2, 6.1 },
+			note = "a blue-grey steel pegboard filling the frame behind the capsule, bolted at its corners, HATCH stencilled low on it where a seated capsule mostly hides it",
+		},
+		{
+			name = "Tools",
+			level = "detail",
+			attaches = "Board",
+			at = { -0.17, 3.7, 4.4 },
+			size = { 6, 0.42, 4.25 },
+			note = "double open-ended spanners traced from a photo of a real one, and a hammer, hung on pegs in the board's holes as they really would be: the Big Spanner left of the capsule, its head resting on two pegs with the shank between them, a small spanner lying across two pegs above the panel, and the hammer head up on two pegs",
+		},
+		{
+			name = "Panel",
+			level = "major",
+			attaches = "Board",
+			at = { 2.25, 2.7, 2.7 },
+			size = { 1.3, 2.4, 4.4 },
+			note = "a control box on the board right of the capsule: a big dial, a red ARMED lamp for the booby trap, a lever, a cable running down and across the deck to the drum",
+		},
+		{
+			name = "Arm",
+			level = "major",
+			attaches = "Frame",
+			at = { 0, 2.1, 6.5 },
+			size = { 1.1, 2.7, 1.9 },
+			note = "a work lamp on a jointed arm from the beam, reaching forward over the capsule's back and stopping 0.7 short of the middle, its shade tipped at the capsule, above z 5.3",
+		},
+		{
+			name = "Posts",
+			level = "major",
+			attaches = "Deck",
+			at = { 0, -4.2, 2.6 },
+			size = { 9.7, 1.4, 4.2 },
+			note = "a steel lamp post at each front corner, 4 tall, with a bracket arm reaching in",
+		},
+		{
+			name = "PostLamps",
+			level = "detail",
+			attaches = "Posts",
+			at = { 0, -3.55, 4.4 },
+			size = { 7.1, 0.6, 0.6 },
+			note = "the amber lamps on the two front posts, glowing",
+		},
+		{
+			name = "BackLamps",
+			level = "detail",
+			attaches = "Frame",
+			at = { 0, 2.7, 5.8 },
+			size = { 8.8, 3.1, 4.8 },
+			note = "the rest of the glowing lamps, all behind the seat: amber on the beam's ends and in the arm's shade, a row of green indicators along the beam's front, the red ARMED lamp on the panel",
+		},
+		{
+			name = "Crate",
+			level = "detail",
+			attaches = "Deck",
+			at = { -3.6, 2.5, 1.09 },
+			size = { 1.7, 1.4, 1.2 },
+			note = "a parts crate in the back left corner holding a heap of junk",
+		},
+		{ name = "CrateHeap", level = "detail", attaches = "Crate", at = { -3.6, 2.5, 1.64 }, size = { 1.3, 0.98, 0.4 }, note = "the rusty mound the crate's junk is bedded into" },
+		{ name = "CrateGear", level = "detail", attaches = "CrateHeap", at = { -3.88, 2.7, 1.72 }, size = { 0.44, 0.43, 0.32 }, note = "a bronze gear bedded in the heap" },
+		{ name = "CrateScrap", level = "detail", attaches = "CrateHeap", at = { -3.5, 2.4, 1.8 }, size = { 1.5, 0.92, 0.56 }, note = "a broken cog, a washer, a bent pipe propped on the side wall and two bolts, bedded in the heap and never in each other" },
+		{
+			name = "Drum",
+			level = "detail",
+			attaches = "Deck",
+			at = { 3.6, 2.6, 1.5 },
+			size = { 1.4, 1.3, 2 },
+			note = "an oil drum in the back right corner, a band round it, a funnel on top",
+		},
+	},
+	-- Nothing is walked through. The player steps up the deck's 0.5 from the
+	-- front or either side and stands at the drum: the two front lamps are
+	-- 7.7 apart at head height against the 4 wide capsule, and there is
+	-- nothing overhead in front of the drum. The back is closed by the frame.
+	clearance = {},
+}

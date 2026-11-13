@@ -1,0 +1,8 @@
+[package]
+name = "modelkit-render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modelkit-kernel = { path = "../kernel" }
+modelkit-anim = { path = "../anim" }

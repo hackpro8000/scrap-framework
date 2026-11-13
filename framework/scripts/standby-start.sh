@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Warms up standby build machines. With a coordinator running in this
+# session (framework/scripts/coordinator.sh start), they connect to it and get tasks
+# live; without one, they wait on the build-queue branch as before.
+#
+#   framework/scripts/standby-start.sh [machines, default 20] [ref, default wip/coordinator]
+#   framework/scripts/standby-start.sh --on-machine [machines] [ref]
+#
+# --on-machine, for a session that can't connect out: build machine 1 runs
+# the coordinator and does the uploads, and this session reaches it through
+# the build-queue branch. With the repo's TS_AUTHKEY secret it is reached
+# over the tailnet, else through Cloudflare tunnels whose control port
+# admits only this session's key (framework/scripts/coordinator.sh key).
+#
+# STANDBY_WORKFLOW_REF picks the branch whose workflow file runs (default:
+# the current branch).
+
+set -euo pipefail
+
+on_machine=no
+if [ "${1:-}" = "--on-machine" ]; then
+	on_machine=yes
+	shift
+fi
+shards="${1:-20}"
+ref="${2:-wip/coordinator}"
+source "$(dirname "$0")/lib/game.sh"
+source "$(dirname "$0")/lib/hive.sh"
+cd "${GAME_ROOT}"
+repo="$(game_repository)"
+control_key=""
+if [ "${on_machine}" = yes ]; then
+	url="machine-1"
+	control_key="$("${FRAMEWORK}/scripts/coordinator.sh" key)"
+else
+	url="$("${FRAMEWORK}/scripts/coordinator.sh" url 2> /dev/null || true)"
+fi
+# One standby at a time: an older run still up would hold the account's
+# machine slots and this one would wait behind it in GitHub's queue.
+for old in $(gh run list -R "${repo}" --workflow build-standby.yml --limit 20 --json databaseId,status \
+	--jq '.[] | select(.status == "in_progress" or .status == "queued" or .status == "waiting") | .databaseId'); do
+	echo "stopping standby run ${old} first" >&2
+	gh run cancel -R "${repo}" "${old}" > /dev/null || true
+done
+branch="$(git rev-parse --abbrev-ref HEAD)"
+# Machines run the code they check out, so a scratch branch gets this
+# working tree first; otherwise they would run an older snapshot.
+case "${ref}" in
+	wip/*) "${FRAMEWORK}/scripts/push-wip.sh" "${ref}" > /dev/null ;;
+esac
+gh workflow run -R "${repo}" build-standby.yml --ref "${STANDBY_WORKFLOW_REF:-${branch}}" -f ref="${ref}" -f shards="${shards}" \
+	-f coordinator="${url}" -f control_key="${control_key}"
+# Say straight away if GitHub holds the run back, and alert if it still
+# does a minute in (ALERT QUEUED, docs/plans/multi-machine.md).
+dispatched="$(date +%s)"
+sleep 8
+state="$(gh run list -R "${repo}" --workflow build-standby.yml --limit 1 --json status,databaseId --jq '.[0] | "\(.databaseId) \(.status)"')"
+echo "standby run ${state}" >&2
+case "${state}" in *queued*) echo "warning: the run is queued; another run may still hold the machine slots (gh run list)" >&2 ;; esac
+while [[ "${state}" == *queued* ]] && [ $(( $(date +%s) - dispatched )) -lt 60 ]; do
+	sleep 10
+	state="$(gh run list -R "${repo}" --workflow build-standby.yml --limit 1 --json status,databaseId --jq '.[0] | "\(.databaseId) \(.status)"')"
+done
+if [[ "${state}" == *queued* ]]; then
+	holding="$(gh run list -R "${repo}" --status in_progress --limit 20 --json databaseId,workflowName \
+		--jq '[.[] | "\(.databaseId) (\(.workflowName))"] | join(", ")')"
+	echo "ALERT QUEUED: standby run ${state%% *} still queued after 60s; runs holding slots: ${holding:-none in this repo, so runs elsewhere on the account} | cancel them (gh run cancel <id>) or wait for them to end"
+fi
+if [ "${url}" = "machine-1" ]; then
+	echo "starting ${shards} machines; machine 1 coordinates (and uploads, when the repo has the Roblox secrets)" >&2
+	echo "to talk to it live: framework/scripts/coordinator.sh attach ${state%% *}" >&2
+	echo "(without TS_AUTHKEY, attach waits for machine 1 to publish its tunnel address, a minute or two in)" >&2
+elif [ -n "${url}" ]; then
+	echo "starting ${shards} machines; they connect to ${url} (framework/scripts/coordinator.sh status shows them)" >&2
+else
+	echo "starting ${shards} machines on the build-queue branch (no coordinator running here)" >&2
+fi

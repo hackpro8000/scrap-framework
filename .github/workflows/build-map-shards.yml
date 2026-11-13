@@ -1,0 +1,206 @@
+# Builds a layout (by default the game's default_layout, from game.toml at the
+# checkout root; scripts are in framework/scripts/) split across parallel machines with modelkit
+# --shard, uploads every shard's chunks to Roblox and opens a PR with the
+# merged chunk IDs and anchors. Run it from the Actions tab or with
+#
+#   gh workflow run build-map-shards.yml -f ref=<commit or branch> -f shards=8
+#
+# Uploads need the repository secrets ROBLOX_API_KEY (asset:write) and
+# ROBLOX_CREATOR_ID; without them the shards are built and checked only.
+# Only small results (part lists, manifests, IDs) are kept as
+# artifacts, for a day: the .glb chunks go straight to Roblox.
+#
+# Each machine keeps its build cache between runs, so a run rebuilds only
+# what changed. That works while the deal of placements to machines stays
+# put: it moves when the costs file changes (refresh_costs) or when the
+# layout adds or removes placements, and the next run rebuilds what moved.
+name: Build map shards
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch to build (framework/scripts/push-wip.sh pushes unfinished work to wip/coordinator)
+        default: main
+      layout:
+        description: Layout to build (empty for the game's default_layout)
+        default: ""
+      shards:
+        description: Number of machines (1-16)
+        default: "8"
+      refresh_costs:
+        description: Write this run's build times to the costs file (re-deals the shards, so the next run rebuilds what moved)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # A lookup instead of a planning job, which would cost a machine start.
+        shard: ${{ fromJSON('{"1":[1],"2":[1,2],"3":[1,2,3],"4":[1,2,3,4],"5":[1,2,3,4,5],"6":[1,2,3,4,5,6],"7":[1,2,3,4,5,6,7],"8":[1,2,3,4,5,6,7,8],"9":[1,2,3,4,5,6,7,8,9],"10":[1,2,3,4,5,6,7,8,9,10],"11":[1,2,3,4,5,6,7,8,9,10,11],"12":[1,2,3,4,5,6,7,8,9,10,11,12],"13":[1,2,3,4,5,6,7,8,9,10,11,12,13],"14":[1,2,3,4,5,6,7,8,9,10,11,12,13,14],"15":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"16":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]}')[inputs.shards] }}
+    env:
+      SHARE: ${{ matrix.shard }}/${{ inputs.shards }}
+      # This machine's cache holds only its own share, so pruning it is safe.
+      MODELKIT_PRUNE: "1"
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ROBLOX_CREATOR_ID: ${{ secrets.ROBLOX_CREATOR_ID }}
+    steps:
+      # Only what a build reads: no concept art, docs or game code.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          sparse-checkout-cone-mode: false
+          # The game's engine package is built here (engine/bin is not in git).
+          sparse-checkout: |
+            /game.toml
+            /Cargo.toml
+            /Cargo.lock
+            /engine/
+            /framework/
+            /art/src/
+            /art/style/
+            /art/plugins/
+            /art/models/*/model.luau
+      # A workflow input's default can't read a file, so the layout falls back here.
+      - name: Read the game's settings
+        env:
+          INPUT_LAYOUT: ${{ inputs.layout }}
+        run: |
+          source framework/scripts/lib/game.sh
+          echo "LAYOUT=${INPUT_LAYOUT:-$(game_setting default_layout)}" >> "$GITHUB_ENV"
+      - name: Restore this shard's build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: art/models/${{ env.LAYOUT }}/.cache
+          key: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
+          restore-keys: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-
+      - name: Build shard ${{ matrix.shard }}
+        run: |
+          cache="art/models/$LAYOUT/.cache"
+          mkdir -p "$cache"
+          echo "CACHE_BEFORE=$(ls "$cache" | sha1sum | cut -c1-16)" >> "$GITHUB_ENV"
+          echo "CACHE_ENTRIES=$(ls "$cache" | wc -l)" >> "$GITHUB_ENV"
+          framework/scripts/assemble-model.sh "$LAYOUT"
+          mkdir -p engine/bin
+          start=$SECONDS
+          set -o pipefail
+          framework/scripts/build-model.sh "$LAYOUT" -- --chunks --shard "$SHARE" 2>&1 | tee build.log
+          echo "BUILD_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
+          echo "CACHE_AFTER=$(ls "$cache" | sha1sum | cut -c1-16)" >> "$GITHUB_ENV"
+      - name: Save this shard's build cache
+        if: env.CACHE_AFTER != env.CACHE_BEFORE
+        uses: actions/cache/save@v4
+        with:
+          path: art/models/${{ env.LAYOUT }}/.cache
+          key: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
+      - name: Collect results
+        run: |
+          out="results/S${{ matrix.shard }}"
+          mkdir -p "$out"
+          python3 - "art/models/$LAYOUT/$LAYOUT.glb" > "$out/parts.txt" << 'EOF'
+          import json, struct, sys
+          data = open(sys.argv[1], "rb").read()
+          length = struct.unpack_from("<I", data, 12)[0]
+          names = [node["name"] for node in json.loads(data[20:20 + length])["nodes"] if "mesh" in node]
+          print("\n".join(sorted(names)))
+          EOF
+          cp "art/models/$LAYOUT/chunks/${LAYOUT}Chunks.luau" "$out/"
+          # Each placement's build time (only what was rebuilt), for dealing shards.
+          awk -F'\t' '$1 == "SHARD_COST" { print $2 "\t" $3 }' build.log > "$out/costs.txt"
+      - name: Upload chunks to Roblox
+        if: env.ROBLOX_API_KEY != '' && env.ROBLOX_CREATOR_ID != ''
+        run: |
+          start=$SECONDS
+          framework/scripts/upload-chunks.sh "$LAYOUT"
+          cp "art/models/$LAYOUT/chunks/${LAYOUT}AssetIds.txt" "results/S${{ matrix.shard }}/"
+          echo "UPLOAD_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Shard $SHARE" >> "$GITHUB_STEP_SUMMARY"
+          echo "build ${BUILD_SECONDS:--}s (cache had ${CACHE_ENTRIES:-0} entries), upload ${UPLOAD_SECONDS:-skipped}${UPLOAD_SECONDS:+s}, $(wc -l < "results/S${{ matrix.shard }}/parts.txt" 2>/dev/null || echo 0) parts" >> "$GITHUB_STEP_SUMMARY"
+          awk -F'\t' '{ s += $2 } END { printf "rebuilt: %.0fs of work over %d builds\n", s, NR }' "results/S${{ matrix.shard }}/costs.txt" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: results/S${{ matrix.shard }}
+          retention-days: 1
+
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /game.toml
+            /framework/
+            /art/src/layouts/
+            /src/shared/
+      - name: Read the game's settings
+        env:
+          INPUT_LAYOUT: ${{ inputs.layout }}
+        run: |
+          source framework/scripts/lib/game.sh
+          echo "LAYOUT=${INPUT_LAYOUT:-$(game_setting default_layout)}" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          path: shards
+          pattern: shard-*
+      - name: Check shards
+        run: |
+          count=$(ls -d shards/shard-* | wc -l)
+          [ "$count" -eq "${{ inputs.shards }}" ] || { echo "only $count of ${{ inputs.shards }} shards came back"; exit 1; }
+          twice=$(cat shards/shard-*/parts.txt | sort | uniq -d)
+          [ -z "$twice" ] || { echo "parts built by more than one shard:"; echo "$twice" | head; exit 1; }
+          echo "$(cat shards/shard-*/parts.txt | wc -l) parts across $count shards, none built twice" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Merge chunk IDs (and costs, if asked), open a PR
+        run: |
+          costs="art/src/layouts/${LAYOUT}Costs.txt"
+          what=""
+          if [ "${{ inputs.refresh_costs }}" = "true" ]; then
+            # This run's measurements (the slowest where a model was built on
+            # more than one shard), plus older ones it didn't measure.
+            touch "$costs"
+            cat shards/shard-*/costs.txt | awk -F'\t' '!($1 in t) || $2 > t[$1] { t[$1] = $2 } END { for (k in t) print k "\t" t[k] }' > new-costs.txt
+            awk -F'\t' 'NR == FNR { seen[$1] = 1; print; next } !($1 in seen)' new-costs.txt "$costs" | LC_ALL=C sort > "$costs.new"
+            mv "$costs.new" "$costs"
+            echo "$(wc -l < new-costs.txt) build times measured" >> "$GITHUB_STEP_SUMMARY"
+            what="build times"
+          fi
+          if ls shards/shard-*/"${LAYOUT}AssetIds.txt" > /dev/null 2>&1; then
+            framework/scripts/merge-shards.sh "$LAYOUT" $(ls -d shards/shard-* | sort -V)
+            what="chunks${what:+ and $what}"
+          else
+            echo "No chunks were uploaded (no Roblox secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          # Staged first, so a costs file that didn't exist before counts as a change.
+          git add -A src/shared "$costs" 2> /dev/null || true
+          if git diff --cached --quiet; then
+            echo "Nothing to commit." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          branch="map-build/${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -m "$LAYOUT $what from a ${{ inputs.shards }}-shard build of ${{ inputs.ref }}"
+          git push origin "$branch"
+          if gh pr create --base main --head "$branch" \
+            --title "$LAYOUT $what: ${{ inputs.shards }}-shard build of ${{ inputs.ref }}" \
+            --body "New $what from [run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). Build times deal the next run's shards by cost. New chunk IDs load in Studio with framework/studio/PlaceMap.luau."; then
+            echo "Opened a PR from $branch" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Pushed $branch, but couldn't open a PR (allow GitHub Actions to create pull requests in the repository settings): ${{ github.server_url }}/${{ github.repository }}/compare/$branch" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

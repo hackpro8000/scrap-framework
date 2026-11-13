@@ -1,0 +1,14 @@
+# Lines under framework/ that may still name a game, one regex per line,
+# matched against rg's "path:line:text" output (paths from the repository
+# root). Every entry starts with ^framework/ and has a comment above it saying
+# why it is kept. Read by .github/workflows/ci.yml (the names job) and
+# framework/scripts/test-new-game.sh. Delete an entry once its line is clean.
+
+# The proof script defaults to the proof game beside the framework; it runs only in the framework repository.
+^framework/scripts/proof\.sh:[0-9]+:.*proof/scrap-heist
+# A comment that gives the proof game's folder as an example of GAME_ROOT.
+^framework/scripts/lib/game\.sh:[0-9]+:.*proof/scrap-heist
+# Studio placement scripts still hold one game's model and folder names (a deferred decision in the template plan).
+^framework/studio/PlaceMap\.luau:[0-9]+:.*(Junkrot|CapsuleScrap)
+^framework/studio/PlaceModels\.luau:[0-9]+:.*(heaps of scrap|"Scrapper")
+# A comment that gives one game's models as an example of a large upload.

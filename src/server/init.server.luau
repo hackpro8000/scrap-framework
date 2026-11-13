@@ -1,0 +1,26 @@
+--!strict
+--[[
+	Server entry point
+
+	The only server Script. Requires every service in boot order and hands
+	them to Boot, which calls all init()s and then all start()s.
+
+	To add a service: require it below and add it to SERVICES in the spot
+	where its dependencies have already booted.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Boot = require(ReplicatedStorage.Shared.Util.Boot)
+
+local Services = script.Services
+
+local SERVICES: { Boot.Entry } = {
+	{ name = "DataService", module = require(Services.DataService) },
+	{ name = "DebugService", module = require(Services.DebugService) },
+	{ name = "SettingsService", module = require(Services.SettingsService) },
+	{ name = "LeaderboardService", module = require(Services.LeaderboardService) },
+	{ name = "CounterService", module = require(Services.CounterService) },
+}
+
+Boot.run("Server", SERVICES)

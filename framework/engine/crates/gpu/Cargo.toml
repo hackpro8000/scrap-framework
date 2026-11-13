@@ -1,0 +1,12 @@
+[package]
+name = "modelkit-gpu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modelkit-kernel = { path = "../kernel" }
+# The shading bake runs its per-texel passes as compute shaders when a GPU is
+# present (see src/gpu.rs). No GL: a GL-only machine bakes on the CPU instead.
+wgpu = { version = "=29.0.4", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "dx12", "wgsl"] }
+pollster = "0.4"
+bytemuck = { workspace = true }

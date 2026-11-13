@@ -1,0 +1,52 @@
+name: proof
+
+# Compiles the engine on a GitHub machine and proves the proof models still
+# build byte for byte as the recorded baseline (framework/scripts/proof.sh). With
+# record=true it prints a fresh baseline and keeps it as an artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch to prove
+        required: true
+      record:
+        description: Record a fresh baseline instead of comparing
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            proof/scrap-heist/target
+          key: proof-${{ hashFiles('proof/scrap-heist/Cargo.lock') }}
+      - name: Tools
+        run: |
+          command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep
+      - name: Proof
+        run: |
+          if [ "${{ inputs.record }}" = "true" ]; then
+            framework/scripts/proof.sh --record | tee baseline.txt
+          else
+            framework/scripts/proof.sh
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: proof
+          path: |
+            baseline.txt
+            proof/scrap-heist/differences.txt
+          if-no-files-found: ignore

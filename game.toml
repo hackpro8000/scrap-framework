@@ -1,0 +1,29 @@
+# Settings the framework reads for this game. Flat: one key per line.
+# framework/scripts/init-game.sh fills these in for a new game.
+
+name = "my-game"
+display_name = "My Game"
+repository = "owner/my-game"
+default_layout = "Map"
+host_prefix = "mygame"
+cloud_environment = ""
+# Models an engine proof on the build machines bakes, one per machine (space-separated).
+sample_models = ""
+# Models scripts/pipeline-try.sh previews when given no --models (comma-separated).
+try_models = ""
+
+# A character is a capsule this many studs across and tall; the camera sits
+# this high. Reviews and checks size walkways and views against them.
+character_width = 4
+character_height = 5.5
+camera_height = 5
+
+# Texture limits for models.
+texture_cap = 1024
+chunk_studs = 128
+
+# Where framework/scripts/framework-update.sh fetches releases (git URL of the framework repository).
+framework_source = "https://github.com/hackpro8000/scrap-framework"
+
+# Hive plugins to load, space-separated (each is framework/hive/<name>/).
+hive_plugins = "pipeline"
