@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::bake::hash;
+use crate::gpu::f32s;
 use crate::mesh::{add, dot, scale, sub, Vec3};
 
 // How far off the plane it was laid on a stroke still paints, so it bends
@@ -256,6 +259,33 @@ impl Canvas {
 		&self.grid
 	}
 
+	// The strokes as canvas.wgsl reads them, or None when one is stamped or
+	// drawn with marks, which only the CPU paints.
+	pub fn gpu_strokes(&self) -> Option<Vec<GpuStroke>> {
+		if self.strokes().iter().any(|s| s.brush == Brush::Stamp || s.marks.is_some()) {
+			return None;
+		}
+		let strokes: Vec<GpuStroke> = self
+			.strokes()
+			.iter()
+			.map(|s| GpuStroke {
+				start: f32s(s.start),
+				length: s.length as f32,
+				along: f32s(s.along),
+				width: s.width as f32,
+				across: f32s(s.across),
+				opacity: s.opacity as f32,
+				normal: f32s(s.normal),
+				brush: brush_index(s.brush),
+				color: f32s(s.color),
+				seed: s.seed,
+				tail: s.tail as f32,
+				_pad: [0.0; 3],
+			})
+			.collect();
+		Some(strokes)
+	}
+
 	fn cell(&self, p: Vec3) -> [i64; 3] {
 		p.map(|c| (c / self.cell_size).floor() as i64)
 	}
@@ -315,5 +345,37 @@ impl Canvas {
 			}
 		}
 		color
+	}
+}
+
+// A stroke as canvas.wgsl reads it, padded to vec4 alignment.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct GpuStroke {
+	start: [f32; 3],
+	length: f32,
+	along: [f32; 3],
+	width: f32,
+	across: [f32; 3],
+	opacity: f32,
+	normal: [f32; 3],
+	brush: u32,
+	color: [f32; 3],
+	seed: u32,
+	tail: f32,
+	_pad: [f32; 3],
+}
+
+// The brush's number in canvas.wgsl, which follows the order of `Brush`.
+fn brush_index(brush: Brush) -> u32 {
+	match brush {
+		Brush::Flat => 0,
+		Brush::Round => 1,
+		Brush::Liner => 2,
+		Brush::Sponge => 3,
+		Brush::Dry => 4,
+		Brush::Taper => 5,
+		// Never uploaded: `gpu_strokes` leaves stamped strokes to the CPU.
+		Brush::Stamp => 0,
 	}
 }

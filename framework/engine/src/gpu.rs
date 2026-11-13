@@ -15,8 +15,7 @@ use std::sync::{Mutex, OnceLock};
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::bake::Texel;
-use crate::brush::{Brush, Canvas};
+use crate::kernel::Texel;
 use crate::mesh::Vec3;
 use crate::progress;
 
@@ -138,23 +137,6 @@ struct GpuSurface {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct GpuStroke {
-	start: [f32; 3],
-	length: f32,
-	along: [f32; 3],
-	width: f32,
-	across: [f32; 3],
-	opacity: f32,
-	normal: [f32; 3],
-	brush: u32,
-	color: [f32; 3],
-	seed: u32,
-	tail: f32,
-	_pad: [f32; 3],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
 struct Slot {
 	key: [i32; 3],
 	used: u32,
@@ -163,7 +145,7 @@ struct Slot {
 	_pad: [u32; 2],
 }
 
-fn f32s(v: Vec3) -> [f32; 3] {
+pub(crate) fn f32s(v: Vec3) -> [f32; 3] {
 	v.map(|c| c as f32)
 }
 
@@ -278,52 +260,19 @@ pub fn crease<S: BuildHasher>(texels: &[Texel], surfaces: &[([Vec3; 3], Vec3, bo
 	Some(paint.into_iter().map(|[inward, outward, x, y, z, ..]| (f64::from(inward), f64::from(outward), [f64::from(x), f64::from(y), f64::from(z)])).collect())
 }
 
-// Canvas::paint (`over` false) or Canvas::over (`over` true) at every texel:
-// the linear color, and how much the strokes cover (1 for paint).
-pub fn canvas(canvas: &Canvas, texels: &[Texel], over: bool) -> Option<Vec<([f64; 3], f64)>> {
-	if canvas.strokes().iter().any(|s| s.brush == Brush::Stamp || s.marks.is_some()) {
-		return None;
-	}
+// A canvas's paint (`over` false) or over (`over` true) at every texel: the
+// linear color, and how much the strokes cover (1 for paint). `strokes` are
+// laid out as canvas.wgsl reads them, `grid` lists them under each cell of
+// `cell_size` studs.
+pub fn canvas<T: Pod, S: BuildHasher>(strokes: &[T], grid: &HashMap<[i64; 3], Vec<usize>, S>, cell_size: f64, texels: &[Texel], over: bool) -> Option<Vec<([f64; 3], f64)>> {
 	let gpu = gpu()?.lock().ok()?;
-	let (slots, items, mask) = hash_table(canvas.grid())?;
-	let strokes: Vec<GpuStroke> = canvas
-		.strokes()
-		.iter()
-		.map(|s| GpuStroke {
-			start: f32s(s.start),
-			length: s.length as f32,
-			along: f32s(s.along),
-			width: s.width as f32,
-			across: f32s(s.across),
-			opacity: s.opacity as f32,
-			normal: f32s(s.normal),
-			brush: brush_index(s.brush),
-			color: f32s(s.color),
-			seed: s.seed,
-			tail: s.tail as f32,
-			_pad: [0.0; 3],
-		})
-		.collect();
+	let (slots, items, mask) = hash_table(grid)?;
 	let points = gpu_texels(texels);
-	if !gpu.fits(&[size_of_val(&points[..]), size_of_val(&strokes[..]), size_of_val(&slots[..]), size_of_val(&items[..])]) {
+	if !gpu.fits(&[size_of_val(&points[..]), size_of_val(strokes), size_of_val(&slots[..]), size_of_val(&items[..])]) {
 		return None;
 	}
-	let inputs = [&gpu.storage("texels", &points), &gpu.storage("strokes", &strokes), &gpu.storage("slots", &slots), &gpu.storage("items", &items)];
+	let inputs = [&gpu.storage("texels", &points), &gpu.storage("strokes", strokes), &gpu.storage("slots", &slots), &gpu.storage("items", &items)];
 	let pipeline = if over { &gpu.over } else { &gpu.paint };
-	let paint: Vec<[f32; 4]> = gpu.run(pipeline, inputs, texels.len(), mask, canvas.cell_size() as f32, 0.0, 1.0, 0.0, 0.0, [0.0; 4])?;
+	let paint: Vec<[f32; 4]> = gpu.run(pipeline, inputs, texels.len(), mask, cell_size as f32, 0.0, 1.0, 0.0, 0.0, [0.0; 4])?;
 	Some(paint.into_iter().map(|[r, g, b, a]| ([r, g, b].map(f64::from), f64::from(a))).collect())
-}
-
-// The brush's number in canvas.wgsl, which follows the order of `Brush`.
-fn brush_index(brush: Brush) -> u32 {
-	match brush {
-		Brush::Flat => 0,
-		Brush::Round => 1,
-		Brush::Liner => 2,
-		Brush::Sponge => 3,
-		Brush::Dry => 4,
-		Brush::Taper => 5,
-		// Never uploaded: `canvas` leaves stamped strokes to the CPU.
-		Brush::Stamp => 0,
-	}
 }

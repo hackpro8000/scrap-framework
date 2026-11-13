@@ -3,7 +3,6 @@
 // <model folder>/.cache, one per key, and a build deletes the ones it didn't
 // use.
 
-use crate::bake::CONTACT_REACH;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -13,6 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use crate::image::Image;
+use crate::kernel::within_reach;
 use crate::mesh::{Face, Mesh};
 
 // Bump when the file layout or anything baked into it changes.
@@ -342,10 +342,10 @@ pub struct Source {
 }
 
 // Where one layer of a part's paint is cached, keyed by what that layer reads:
-// the part's geometry, the parts in reach when `reach`, the layer's settings in
-// `numbers`, the colour it starts from when `colour`, and the paint source.
-// None when caching is off, or a custom paint has no salt.
-pub fn layer_path(kind: &str, mesh: &Mesh, occluders: &[&Mesh], reach: bool, numbers: &[f64], colour: Option<&Image>, source: &Source) -> Option<PathBuf> {
+// the part's geometry, the parts within `reach` studs when given, the layer's
+// settings in `numbers`, the colour it starts from when `colour`, and the
+// paint source. None when caching is off, or a custom paint has no salt.
+pub fn layer_path(kind: &str, mesh: &Mesh, occluders: &[&Mesh], reach: Option<f64>, numbers: &[f64], colour: Option<&Image>, source: &Source) -> Option<PathBuf> {
 	let started = Instant::now();
 	let path = PAINT_CACHE.with(|cell| {
 		let state = cell.borrow();
@@ -356,8 +356,8 @@ pub fn layer_path(kind: &str, mesh: &Mesh, occluders: &[&Mesh], reach: bool, num
 		let mut hasher = DefaultHasher::new();
 		kind.hash(&mut hasher);
 		hash_mesh(&mut hasher, mesh);
-		if reach {
-			for other in occluders.iter().filter(|other| crate::bake::within_reach(mesh, other, CONTACT_REACH)) {
+		if let Some(reach) = reach {
+			for other in occluders.iter().filter(|other| within_reach(mesh, other, reach)) {
 				hash_mesh(&mut hasher, other);
 			}
 		}

@@ -35,7 +35,7 @@ use crate::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
 // The low-level pieces now live in the kernel; these names stay reachable
 // through `bake::` for the modules that still import them from here.
 pub use crate::kernel::{hash, parallel, to_linear, Texel};
-use crate::kernel::{parallel_with, to_srgb};
+use crate::kernel::{bounds, parallel_with, to_srgb, within_reach};
 
 // --- Unwrap -----------------------------------------------------------------
 
@@ -765,12 +765,12 @@ pub fn paint_shading(mesh: &Mesh, group: &[&Mesh], group_sizes: &[(usize, usize)
 	let coat_marks: Vec<f64> = look.brushes.coat.iter().flat_map(|marks| marks.numbers()).collect();
 	// The coat and wear read the shade layer, so its key is part of theirs.
 	let coat_numbers = [&[look.gradient, look.brush, f64::from(u8::from(shading.crisp))][..], &style_numbers, &coat_marks, &range_key, &drawn_key, &shade_size, &[STROKE_LAYOUT_VERSION]].concat();
-	let coat_path = cache::layer_path("coat", mesh, &neighbours, false, &coat_numbers, Some(&*image), source);
+	let coat_path = cache::layer_path("coat", mesh, &neighbours, None, &coat_numbers, Some(&*image), source);
 	let shade_path = shade_layer_path(mesh, width, height, group, occluders, shading, source, reach, width_scale, bevel_reach, bevel_fold);
 	// The wear's key reads the same untouched image as the coat's, so both
 	// layers are looked for, and loaded when cached, before anything is shaded.
 	let wear_numbers = [&[look.rust, f64::from(u8::from(look.rubber)), f64::from(u8::from(look.rust_edges)), look.gradient, look.brush][..], &range_key, &look.brushes.wear_numbers(), &shade_size, &[STROKE_LAYOUT_VERSION]].concat();
-	let wear_path = cache::layer_path("wear", mesh, &neighbours, true, &wear_numbers, Some(&*image), source);
+	let wear_path = cache::layer_path("wear", mesh, &neighbours, Some(CONTACT_REACH), &wear_numbers, Some(&*image), source);
 	let coat_loaded = profiled(1, || load_cached(&coat_path));
 	let wear_loaded = profiled(2, || load_cached(&wear_path));
 	// The siblings' edge fields are read by the coat's and the wear's strokes
@@ -884,7 +884,7 @@ pub fn paint_shading(mesh: &Mesh, group: &[&Mesh], group_sizes: &[(usize, usize)
 				canvas.add(stroke.clone());
 			}
 			let stage = Instant::now();
-			let colours = match gpu::canvas(&canvas, &full, false) {
+			let colours = match canvas.gpu_strokes().and_then(|strokes| gpu::canvas(&strokes, canvas.grid(), canvas.cell_size(), &full, false)) {
 				Some(painted) => painted.into_iter().map(|(c, _)| to_f32(c)).collect(),
 				None => parallel(&full, |t| to_f32(canvas.paint(t.position, t.face_normal))),
 			};
@@ -893,7 +893,7 @@ pub fn paint_shading(mesh: &Mesh, group: &[&Mesh], group_sizes: &[(usize, usize)
 		})));
 		let wear_layer = wear_loaded.unwrap_or_else(|| profiled(2, || cached_layer(wear_path, || {
 			let canvas = coat::wear(&whole, look, &wear, base);
-			let over = gpu::canvas(&canvas, &full, true).unwrap_or_else(|| parallel(&full, |t| canvas.over(t.position, t.face_normal)));
+			let over = canvas.gpu_strokes().and_then(|strokes| gpu::canvas(&strokes, canvas.grid(), canvas.cell_size(), &full, true)).unwrap_or_else(|| parallel(&full, |t| canvas.over(t.position, t.face_normal)));
 			let colour: Vec<[f32; 3]> = over.iter().map(|(c, _)| to_f32(*c)).collect();
 			let cover: Vec<[f32; 3]> = over.iter().map(|(_, a)| [*a as f32, 0.0, 0.0]).collect();
 			vec![layer_image(width, height, &full, &colour), layer_image(width, height, &full, &cover)]
@@ -910,7 +910,7 @@ pub fn paint_shading(mesh: &Mesh, group: &[&Mesh], group_sizes: &[(usize, usize)
 		soft_numbers.extend([f64::from(u8::from(shading.soft_to_zero)), shading.soft_power, shading.soft_end, 4.0]);
 	}
 	soft_numbers.extend(shading.soft_marks.iter().flat_map(|marks| marks.numbers()));
-	let soft_layer = (shading.soft_highlight > 0.0).then(|| cached_layer(cache::layer_path("soft", mesh, &neighbours, true, &soft_numbers, None, source), || {
+	let soft_layer = (shading.soft_highlight > 0.0).then(|| cached_layer(cache::layer_path("soft", mesh, &neighbours, Some(CONTACT_REACH), &soft_numbers, None, source), || {
 		let mut triangles = mesh_triangles(mesh);
 		for other in group {
 			if within_reach(mesh, other, soft_reach) {
@@ -1136,7 +1136,7 @@ pub struct ShadePass {
 fn shade_layer_path(target: &Mesh, width: usize, height: usize, group: &[&Mesh], occluders: &[&Mesh], shading: &Shading, source: &cache::Source, reach: f64, width_scale: f64, bevel_reach: f64, bevel_fold: f64) -> Option<PathBuf> {
 	let neighbours: Vec<&Mesh> = group.iter().chain(occluders).copied().collect();
 	let shade_size = shade_key(width, height, shading, reach, width_scale, bevel_reach, bevel_fold);
-	cache::layer_path("shade", target, &neighbours, true, &shade_size, None, source)
+	cache::layer_path("shade", target, &neighbours, Some(CONTACT_REACH), &shade_size, None, source)
 }
 
 fn shade_pass(target: &Mesh, width: usize, height: usize, group: &[&Mesh], occluders: &[&Mesh], shading: &Shading, source: &cache::Source, reach: f64, width_scale: f64, bevel_reach: f64, bevel_fold: f64, grid_reach: f64, bevel_min_cos: f64, shade_path: Option<PathBuf>, only: Option<NearBox>) -> ShadePass {
@@ -1710,27 +1710,5 @@ impl ImageSampler {
 		}
 		best.1.map(f64::from)
 	}
-}
-
-// Whether another mesh is close enough to a mesh's surfaces to shade or be
-// shaded by them. The paint only reads occluders this close.
-pub fn within_reach(own: &Mesh, other: &Mesh, reach: f64) -> bool {
-	let (own_low, own_high) = bounds(own);
-	let (low, high) = bounds(other);
-	let gap = (0..3).map(|k| (low[k] - own_high[k]).max(own_low[k] - high[k]).max(0.0)).fold(0.0, |sum, g| sum + g * g);
-	gap <= reach * reach
-}
-
-// Corners of the box round a mesh's positions.
-fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
-	let mut low = [f64::MAX; 3];
-	let mut high = [f64::MIN; 3];
-	for p in &mesh.positions {
-		for k in 0..3 {
-			low[k] = low[k].min(p[k]);
-			high[k] = high[k].max(p[k]);
-		}
-	}
-	(low, high)
 }
 

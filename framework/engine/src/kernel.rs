@@ -1,11 +1,12 @@
 // Kernel: the shared low-level pieces every plugin uses. A seeded hash for
 // repeatable noise, the texel a bake paints, sRGB/linear colour conversion,
-// and the batched thread pool that runs work over texels. It depends on
-// nothing in the engine but the mesh's vector type.
+// the batched thread pool that runs work over texels, and the box test for
+// which meshes are near enough to shade each other. It depends on nothing in
+// the engine but the mesh types.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::mesh::Vec3;
+use crate::mesh::{Mesh, Vec3};
 
 pub fn hash(mut x: u32) -> f64 {
 	x ^= x >> 16;
@@ -72,4 +73,26 @@ pub(crate) fn parallel_with<I: Sync, T: Send, S, N: Fn() -> S + Sync, F: Fn(&mut
 	});
 	done.sort_unstable_by_key(|(at, _)| *at);
 	done.into_iter().flat_map(|(_, values)| values).collect()
+}
+
+// Whether another mesh is close enough to a mesh's surfaces to shade or be
+// shaded by them. The paint only reads occluders this close.
+pub fn within_reach(own: &Mesh, other: &Mesh, reach: f64) -> bool {
+	let (own_low, own_high) = bounds(own);
+	let (low, high) = bounds(other);
+	let gap = (0..3).map(|k| (low[k] - own_high[k]).max(own_low[k] - high[k]).max(0.0)).fold(0.0, |sum, g| sum + g * g);
+	gap <= reach * reach
+}
+
+// Corners of the box round a mesh's positions.
+pub(crate) fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
+	let mut low = [f64::MAX; 3];
+	let mut high = [f64::MIN; 3];
+	for p in &mesh.positions {
+		for k in 0..3 {
+			low[k] = low[k].min(p[k]);
+			high[k] = high[k].max(p[k]);
+		}
+	}
+	(low, high)
 }
