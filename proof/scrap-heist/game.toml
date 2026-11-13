@@ -20,3 +20,6 @@ camera_height = 5
 # Texture limits for models.
 texture_cap = 1024
 chunk_studs = 128
+
+# Where framework/scripts/framework-update.sh fetches releases (git URL of the framework repository).
+framework_source = "https://github.com/hackpro8000/scrap-framework"

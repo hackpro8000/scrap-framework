@@ -28,3 +28,17 @@ Rules for everything in this folder:
 Planned: a `VERSION` file, release marks (safe, look-changing,
 plugin-breaking), `framework/scripts/framework-check.sh`, and an engine split
 into a small kernel and plugins.
+
+## Releases and updates
+
+`VERSION` names the release this copy is; `MANIFEST` holds the sha256 of
+every file in it; `CHANGELOG.md` lists releases, each marked safe,
+look-changing or plugin-breaking.
+
+| Command | Where | Does |
+|---|---|---|
+| `scripts/framework-release.sh <version> <kind> "<summary>"` | framework repository | writes VERSION, MANIFEST and a changelog entry; prints the commit and `framework-v<version>` tag commands (runs none) |
+| `scripts/framework-check.sh` | any game | `FRAMEWORK OK <version>`, or lists changed, missing and extra files |
+| `scripts/framework-update.sh <version> [--from <url or path>] [--force]` | a game | replaces this folder with that release (source: `--from` or `framework_source` in `game.toml`), keeps build folders, prints the changes; never commits |
+| `scripts/init-game.sh <name> "<Display Name>" <owner/repository>` | a fresh copy of the template | names the game in `game.toml`, `default.project.json`, `wally.toml`; removes `proof/` |
+| `scripts/test-framework-copy.sh` | anywhere | end-to-end test of the above in a temporary folder |
