@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/scripts/ensure-tools.sh\" >/dev/null || true",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c 'if ((.tool_input.command // \"\") | test(\"(^|[\\\\n|;&(])\\\\s*(sed|grep|egrep|fgrep)(\\\\s|$)\")) then {hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:\"Use sd instead of sed and rg instead of grep (see AGENTS.md).\"}} else empty end'"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c 'if ((.tool_input.file_path // \"\") | test(\"docs/team/core\\\\.md$\")) then {hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"ask\",permissionDecisionReason:\"docs/team/core.md is the fixed core of the team: only the user changes it.\"}} else empty end'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'If this message points out a defect in a model that the critic did not list, follow \"When the critic misses something\" in docs/art/pipeline.md in this turn, without being asked.'"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(scripts/cloud-worker.sh:*)",
+      "ArtifactComments"
+    ]
+  }
+}
