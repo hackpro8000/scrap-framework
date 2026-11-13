@@ -7,19 +7,16 @@ import time
 from game_settings import FRAMEWORK, GAME_ROOT, setting
 
 # Game files and the git checkout are under ROOT, the game's folder (on a
-# build machine, the checkout); the framework's scripts are under SCRIPTS.
+# machine, the checkout); the framework's scripts are under SCRIPTS.
 ROOT = str(GAME_ROOT)
 SCRIPTS = os.path.join(FRAMEWORK, "scripts")
-# The hub's modules (wire, commits, uploader) are shared with the agent.
+# The hub's wire format (wire.py) is shared with the agent.
 sys.path.insert(0, os.path.join(FRAMEWORK, "hive", "hub"))
 
 MAX_MESSAGE = 64 * 1024 * 1024
 LOST_MINUTES = 3
 ADDRESS_BRANCH = "build-results/coordinator-address"
 HEARTBEAT_SECONDS = 10
-CLAIM_WAIT_SECONDS = 15
-CLAIM_TRIES = 4
-LOG_LINES_KEPT = 200
 REQUIRED_TOOLS = ("rg", "sd", "jq")
 # Must equal the hub's (framework/hive/hub/oidc.py).
 AUDIENCE = f"{setting('name')}-coordinator"

@@ -1,46 +1,15 @@
-"""What the hub tracks: a task cut into units (Task, share_out), a unit
-leased to a machine (Lease), and a roster entry (Machine)."""
+"""What the hub tracks: a task cut into units (Task), a unit leased to a
+machine (Lease), and a roster entry (Machine).
+
+A plugin's task kind is a subclass of Task. The hook methods below the
+bookkeeping are where a kind changes a task's life; the defaults make a
+plain task whose unit is over once its machine says done."""
+import json
 import os
+import shutil
 import time
 
 from hub_config import RESULTS
-
-
-def share_out(asked, count, weights=None):
-	"""The preview units of a task of `count` units: one name per unit when
-	there are fewer models than units, each model given shares named
-	<Name>@<i>@<n> in proportion to its weight (its measured machine-seconds,
-	client.py preview_weights), at least one each, summing to count. A name
-	ending in "!" is one machine's job whole, for timing a model on its own;
-	the "!" is dropped. With as many models as units or more, the names as
-	they are, each unit taking every count-th."""
-	names = [name.rstrip("!") for name in asked]
-	if not names or len(names) >= count:
-		return names
-	whole = {name[:-1] for name in asked if name.endswith("!")}
-	split = [name for name in names if name not in whole]
-	if not split:
-		return names
-	budget = count - (len(names) - len(split))
-	weights = weights if isinstance(weights, dict) else {}
-	weight = {}
-	for name in split:
-		given = weights.get(name)
-		weight[name] = float(given) if isinstance(given, (int, float)) and not isinstance(given, bool) and given > 0 else 1.0
-	total = sum(weight[name] for name in split)
-	ideal = {name: budget * weight[name] / total for name in split}
-	shares = {name: max(1, int(ideal[name])) for name in split}
-	while sum(shares[name] for name in split) > budget:
-		name = max((name for name in split if shares[name] > 1), key=lambda name: shares[name] - ideal[name])
-		shares[name] -= 1
-	while sum(shares[name] for name in split) < budget:
-		name = max(split, key=lambda name: ideal[name] - shares[name])
-		shares[name] += 1
-	units = []
-	for name in names:
-		count_of = 1 if name in whole else shares[name]
-		units += [name] if count_of == 1 else [f"{name}@{i}@{count_of}" for i in range(1, count_of + 1)]
-	return units
 
 
 class Lease:
@@ -49,12 +18,6 @@ class Lease:
 	def __init__(self, number, machine):
 		self.number, self.machine = number, machine
 		self.dealt = self.moved = time.time()
-		# Jobs it claimed: [(model, kind), job, settled]. Unsettled ones go
-		# back to the task when the lease does, so the replacement isn't starved.
-		self.claims = []
-		# Models whose bakes it has handed over (bakes-pushed, or its preview
-		# in): it claims no more of their chunks (hub_previews.bakes_done).
-		self.swapped = set()
 
 
 class Machine:
@@ -66,15 +29,16 @@ class Machine:
 		self.run = None
 		self.closed_at = None
 		self.heard = time.time()
-		self.lease = None  # (task id, shard) it holds
-		self.cancelling = {}  # (task id, shard) told to stop -> when last told, until it answers idle (or times out)
+		self.hello = {}  # its latest hello, for what plugins read from it
+		self.lease = None  # (task id, slot) it holds
+		self.cancelling = {}  # (task id, slot) told to stop -> when last told, until it answers idle (or times out)
 		self.progress = None  # its latest heartbeat, with the time it came
-		self.dropped = set()  # (task id, shard) whose late messages were dropped, logged once
+		self.dropped = set()  # (task id, slot) whose late messages were dropped, logged once
 		self.code = None  # the commit its agent runs, from its hello (hub_update)
-		self.cargo = False  # it can compile the engine (hub_engine)
 		self.update_failed = None  # the commit it said it could not update to
 
 	def state(self, now):
+		# "shard" is the unit's slot, as the wire names it.
 		if self.socket is None:
 			return {"name": self.name, "state": "gone", "gone_for": round(now - (self.closed_at or now)),
 				"task": self.lease[0] if self.lease else None, "shard": self.lease[1] if self.lease else None}
@@ -85,64 +49,102 @@ class Machine:
 
 
 class Task:
-	engine = False  # an engine check (hub_engine.EngineTask) instead of a build
+	"""A posted task, cut into `count` units. Unit `slot` (1..count) is S<slot>
+	in logs and results folders, and "shard" in every message about it."""
+	# Its end has been told and it is not written to the tasks file. A kind
+	# that a restarted hub should drop sets it from the start.
+	completed = False
+	# Its units go before every other task's, each to the machine choose() picks.
+	chooses = False
 
-	def __init__(self, identity, ref, upload, count, previews=(), build=True, weights=None, results=RESULTS):
-		self.id, self.ref, self.upload, self.count = identity, ref, upload, count
-		# Without a build the units only render the previews.
-		self.build = build
-		# Models whose previews the units render, shared out between them by
-		# cost (share_out), and the units whose previews haven't all come yet;
-		# shares_in counts the shares of each model that have come back.
-		self.asked = list(previews)  # as posted, for the tasks file
-		self.weights = dict(weights) if isinstance(weights, dict) else {}
-		self.previews = [name.rstrip("!") for name in previews]
-		self.units = share_out(self.asked, count, self.weights)
-		self.shares_in = {}
-		self.queues = {}  # (model, bake or render) -> the next job to hand out
-		self.returned = {}  # (model, kind) -> jobs a returned lease claimed and never finished
-		self.job_answers = {}  # (lease number, claim number) -> job, so a repeated claim gets the same one
-		self.bakes = {}  # model -> share number -> commit of that machine's baked textures
-		self.bake_commits = {}  # model -> every commit of baked textures pushed, in order
-		self.totals = {}  # (model, kind) -> how many jobs there are, as the claims say
-		self.published = set()  # models whose preview is out
-		self.shown = {}  # model -> the path (or FAILED line) its preview event said, for a session that comes back
-		# Units still queued when their model's preview came out: they build, but render nothing.
-		self.skipped = set()
-		self.previews_waiting = set(range(1, count + 1)) if self.previews else set()
+	def __init__(self, identity, count, results=RESULTS):
+		self.id, self.count = identity, count
 		self.queue = list(range(1, count + 1))  # units not leased, front first
-		self.leases = {}  # shard -> its Lease
-		self.moved_from = {}  # shard -> (machine, reason, its Lease) of a returned lease, until it is dealt again
+		self.leases = {}  # slot -> its Lease
+		self.moved_from = {}  # slot -> (machine, reason, its Lease) of a returned lease, until it is dealt again
 		# Reloaded after a hub restart: not dealt before this time, so machines
 		# still on its units reconnect and get them back first (load_tasks).
 		self.held_until = 0
 		self.started = time.time()
-		self.done = {}  # shard -> summary text
-		self.handed = {}  # object id -> (shard, label)
-		self.labels = {}  # (shard, object id) -> label, from names.tsv
-		self.sent = set()  # objects this task uploaded (the rest had assets)
-		self.by_branch = False
-		# Objects whose upload has been answered, each counted once however
-		# often it is handed over (a re-dealt unit hands over the same ones).
-		self.answered = set()
-		self.received = {}  # shard -> [files, bytes] it sent, against MAX_SHARD_*
+		self.done = {}  # slot -> summary text
+		self.received = {}  # slot -> [files, bytes] it sent, against MAX_UNIT_*
 		self.watchers = set()  # control sockets of the session that posted it, for relayed files
 		self.out = os.path.join(results, identity)
 		os.makedirs(self.out, exist_ok=True)
 
-	def text(self, shard=None):
-		# When machine 1 uploads, objects go to it through GitHub, not this link.
-		hand_over = "branch" if self.by_branch else "coordinator"
-		# A unit re-dealt after its build came in only renders.
-		build = self.build and shard not in self.done
-		return (f"ref={self.ref}\nhand-over={hand_over}\n" + ("" if self.upload else "upload=no\n")
-			+ ("" if build else "build=no\n")
-			+ (f"preview={','.join(self.units)}\n" if self.units and shard not in self.skipped else ""))
+	# --- hooks a task kind may replace ---
 
-	def share_model(self, shard):
-		"""The model a unit is one share of (its preview unit is Name@i@n), or None."""
-		unit = self.units[shard - 1] if len(self.units) == self.count and 1 <= shard <= self.count else ""
-		return unit.split("@")[0] if "@" in unit else None
+	def text(self, slot):
+		"""What a unit is to do: the "task" field of the default message."""
+		return ""
 
-	def unit_over(self, shard):
-		return shard in self.done and shard not in self.previews_waiting
+	def message(self, slot, lease):
+		"""The message that leases unit `slot` to a machine; the lease number
+		comes back in the machine's messages, so a cancelled lease's are refused."""
+		return json.dumps({"type": "task", "id": self.id, "task": self.text(slot), "shard": slot, "count": self.count,
+			"lease": lease.number if lease else 0})
+
+	def choose(self, idle):
+		"""With chooses: which of the idle machines takes the next unit, or None to wait."""
+		return None
+
+	def unit_over(self, slot):
+		"""Whether a unit is over, so its machine is idle again."""
+		return slot in self.done
+
+	def new_lease(self, number, machine):
+		return Lease(number, machine)
+
+	def lease_returning(self, lease):
+		"""A lease goes back to the queue; called before its unit is dealt again."""
+
+	async def lease_returned(self, lease):
+		"""A lease went back to the queue and its unit has been dealt again if a machine was free."""
+
+	def lease_given_back(self, lease):
+		"""A machine came back for a unit still queued, and has its own lease back."""
+
+	def set_aside(self, slot, folder, aside):
+		"""A unit dealt again starts clean: what its folder holds moves to `aside`."""
+		self.received.pop(slot, None)
+		if not os.path.isdir(folder):
+			return
+		os.makedirs(aside, exist_ok=True)
+		for entry in os.listdir(folder):
+			shutil.move(os.path.join(folder, entry), os.path.join(aside, entry))
+
+	def takes_file(self, slot, path):
+		"""Whether a file the unit's machine sends (`path` as it named it) is stored."""
+		return slot not in self.done
+
+	async def file_in(self, slot, name, path, data):
+		"""A unit's file was stored at `path` (`name` inside the unit's folder)."""
+
+	def relays(self, path):
+		"""Whether a stored file goes to the task's session (--relay-results)."""
+		return True
+
+	async def finish(self):
+		"""Every unit is done: wraps the task up and returns its "finished" event."""
+		return {"type": "finished", "task": self.id, "out": self.out, "total": round(time.time() - self.started)}
+
+	def waiting(self):
+		"""Whether the task stays open after finishing, for work still to come."""
+		return False
+
+	def state(self):
+		"""What status tells of the task while it is open."""
+		return {"age": round(time.time() - self.started), "done": len(self.done), "count": self.count,
+			"queued": len(self.queue), "leased": len(self.leases)}
+
+	def saved(self):
+		"""Its tasks file entry, which a plugin's loader takes back after a restart."""
+		return {"count": self.count, "done": {str(slot): summary for slot, summary in self.done.items()}}
+
+	async def replay(self, socket):
+		"""For a session that watches the task again: what it may have missed,
+		sent before the units that are over."""
+
+	def finished_again(self, event):
+		"""The finished event, as a session that watches the task again is sent it."""
+		return event

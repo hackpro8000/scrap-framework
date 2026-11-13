@@ -1,5 +1,7 @@
 """The control port: admitting a session by its signed nonce and answering
-its requests (a part of Coordinator), and the checks serve makes on control."""
+its requests (a part of Coordinator), and the checks serve makes on control.
+Requests of kinds the hub does not answer itself go to the plugin that
+registered the kind (HubPlugins.request)."""
 import asyncio
 import ipaddress
 import json
@@ -61,9 +63,6 @@ class SessionControl:
 		if kind == "update":
 			await self.update_request(socket, request)
 			return
-		if kind == "engine":
-			await self.engine_request(socket, request)
-			return
 		if kind == "status":
 			now = time.time()
 			connected = self.connected()
@@ -82,11 +81,11 @@ class SessionControl:
 			# still on one of their units is told to stop.
 			cleared = list(self.tasks)
 			for task in self.tasks.values():
-				for shard, lease in task.leases.items():
+				for slot, lease in task.leases.items():
 					machine = self.roster.get(lease.machine)
-					if machine and machine.lease == (task.id, shard):
+					if machine and machine.lease == (task.id, slot):
 						machine.lease = None
-						await self.tell_cancel(machine, task.id, shard)
+						await self.tell_cancel(machine, task.id, slot)
 			self.tasks.clear()
 			self.save_tasks()
 			say(f"cleared {len(cleared)} tasks: {' '.join(cleared)}")
@@ -105,35 +104,7 @@ class SessionControl:
 				self.watchers.discard(socket)
 			return
 		if kind == "watch-task":
-			# A session whose connection dropped mid-task picks it up again.
-			identity = request.get("task")
-			task, ended = self.tasks.get(identity), self.finished.get(identity)
-			if not task and not ended:
-				await socket.send(json.dumps({"type": "error", "text": f"the coordinator does not know task {identity}"}))
-				return
-			task = task or ended[0]
-			self.watchers.add(socket)
-			task.watchers.add(socket)
-			await socket.send(json.dumps({"type": "watching", "task": task.id, "count": task.count, "up": len(self.connected())}))
-			# Relayed files sent while it was gone: everything stored so far.
-			if self.relay_results:
-				for directory, folders, names in os.walk(task.out):
-					folders[:] = [folder for folder in folders if not folder.startswith(".")]
-					for name in sorted(names):
-						await self.relay(task, "results", os.path.relpath(os.path.join(directory, name), task.out), to=socket)
-			# Previews published and units ended while it was gone.
-			await self.replay_previews(task, socket)
-			if ended and ended[0] is task:
-				# With the previews still waiting now, not when it finished.
-				await socket.send(json.dumps({**ended[1], "previews_waiting": len(task.previews_waiting)}))
-			try:
-				async for _ in socket:
-					pass
-			except websockets.ConnectionClosed:
-				pass
-			finally:
-				self.watchers.discard(socket)
-				task.watchers.discard(socket)
+			await self.watch_task(socket, request.get("task"))
 			return
 		if kind == "mint-workers":
 			# Tokens admit machines, so only a signed session may ask for them.
@@ -153,33 +124,39 @@ class SessionControl:
 				await self.send_to(machine, json.dumps({"type": "stop"}))
 			await socket.send(json.dumps({"type": "stopped", "machines": len(connected)}))
 			return
-		if kind != "build":
+		handler = self.plugins.requests.get(kind) if isinstance(kind, str) else None
+		if handler is None:
 			await socket.send(json.dumps({"type": "error", "text": f"unknown request {kind}"}))
 			return
-		previews = request.get("previews", [])
-		if not isinstance(request.get("ref"), str) or not isinstance(previews, list) or not all(isinstance(name, str) for name in previews):
-			await socket.send(json.dumps({"type": "error", "text": "a build wants a ref and a list of preview names"}))
+		await handler(socket, request)
+
+	async def watch_task(self, socket, identity):
+		"""A session whose connection dropped mid-task picks it up again: the
+		files relayed while it was gone, what the task's kind replays
+		(Task.replay), every unit that is over, and the finished event if the
+		task has finished, so it neither waits for nor reports as stalled
+		what already ended."""
+		task, ended = self.tasks.get(identity), self.finished.get(identity)
+		if not task and not ended:
+			await socket.send(json.dumps({"type": "error", "text": f"the coordinator does not know task {identity}"}))
 			return
-		self.posted += 1
-		identity = f"t{int(time.time())}-{os.getpid()}-{self.posted}"
+		task = task or ended[0]
 		self.watchers.add(socket)
-		task = await self.post(identity, request["ref"], request.get("upload", True), previews,
-			request.get("build", True), request.get("units"), request.get("weights"))
 		task.watchers.add(socket)
-		event = self.machines_event()
-		await socket.send(json.dumps({"type": "posted", "task": identity, "count": task.count, "up": event["up"],
-			"github_up": event["github_up"], "run_count": self.count, "units": task.units, "relayed": self.relay_results,
-			"lease_seconds": {"grace": self.grace, "silent": self.silent, "wedged": self.wedged}, **self.lifetime()}))
-		# Dealt only now, so nothing about the task reaches the session before its id.
-		await self.deal()
-		try:
-			async for _ in socket:
-				pass
-		except websockets.ConnectionClosed:
-			pass
-		finally:
-			self.watchers.discard(socket)
-			task.watchers.discard(socket)
+		await socket.send(json.dumps({"type": "watching", "task": task.id, "count": task.count, "up": len(self.connected())}))
+		if self.relay_results:
+			for directory, folders, names in os.walk(task.out):
+				folders[:] = [folder for folder in folders if not folder.startswith(".")]
+				for name in sorted(names):
+					await self.relay(task, "results", os.path.relpath(os.path.join(directory, name), task.out), to=socket)
+		await task.replay(socket)
+		for slot in range(1, task.count + 1):
+			if task.unit_over(slot):
+				await socket.send(json.dumps({"type": "progress", "task": task.id, "shard": slot, "machine": "", "stage": "done",
+					"model": "", "line": "", "quiet": 0, "seconds": 0}))
+		if ended and ended[0] is task:
+			await socket.send(json.dumps(task.finished_again(ended[1])))
+		await self.follow(socket, task)
 
 
 def local_or_tailnet(host):

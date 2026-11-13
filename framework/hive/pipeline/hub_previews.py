@@ -1,16 +1,20 @@
 """Preview and bake jobs: claims handed out in order, shared bakes, and
-renders put beside their models (a part of Coordinator)."""
+renders put beside their models (a part of PipelineHub)."""
 import asyncio
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
 
-import commits
-from hub_config import COMMIT, MODEL_NAME, ROOT, say
+from hub_config import ROOT, say
+from pipeline import commits
 
+# What a machine may name: a model folder, and a commit.
+MODEL_NAME = re.compile(r"[A-Za-z0-9_]+")
+COMMIT = re.compile(r"[0-9a-f]{7,64}")
 # What a previews-only unit reports (scripts/standby-task.sh), for one dropped unstarted.
 SKIPPED_SUMMARY = "status=DONE\nbuild=-\nupload=skipped\ntotal=0\nparts=0\n"
 
@@ -47,7 +51,7 @@ class PreviewJobs:
 		seconds = event.get("seconds")
 		if lease and isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds >= 0:
 			# Machine-seconds per model share, for client.py's cost-sized shares.
-			await self.emit({"type": "preview-share", "task": task.id, "name": model, "unit": name, "seconds": round(seconds, 1)})
+			await self.hub.emit({"type": "preview-share", "task": task.id, "name": model, "unit": name, "seconds": round(seconds, 1)})
 		source = os.path.join(task.out, f"S{shard}", "previews", name)
 		if "@" not in name:
 			if lease:
@@ -69,7 +73,7 @@ class PreviewJobs:
 		if lease:
 			self.settle(lease, model)
 		if failed:
-			await self.emit({"type": "preview", "task": task.id, "name": model, "path": f"FAILED, see {os.path.join(source, 'build.log')}"})
+			await self.hub.emit({"type": "preview", "task": task.id, "name": model, "path": f"FAILED, see {os.path.join(source, 'build.log')}"})
 		every_share = len(task.shares_in[model]) >= int(shares)
 		if model in task.published or not (every_share or self.jobs_in(task, (model, "render"))):
 			return
@@ -82,6 +86,7 @@ class PreviewJobs:
 		nothing to add. One a machine is still painting is cancelled (the
 		machine answers idle and takes other work); one still queued is
 		dropped, or, if it has a build to do, keeps that and loses its preview."""
+		hub = self.hub
 		for shard in sorted(task.previews_waiting):
 			unit = task.units[shard - 1] if task.share_model(shard) == model else ""
 			if not unit or unit.split("@")[1] in task.shares_in.get(model, ()):
@@ -89,16 +94,16 @@ class PreviewJobs:
 			lease = task.leases.get(shard)
 			if lease and shard in task.done:
 				del task.leases[shard]
-				machine = self.roster.get(lease.machine)
+				machine = hub.roster.get(lease.machine)
 				if machine and machine.lease == (task.id, shard):
 					machine.lease = None
-					await self.tell_cancel(machine, task.id, shard)
+					await hub.tell_cancel(machine, task.id, shard)
 				spent = round(time.time() - lease.dealt, 1)
 				say(f"task {task.id}: S{shard} stopped on {lease.machine} after {spent}s: every render of {model} is in")
 				if not task.build:
 					# What it cost all the same, so the shares' seconds stay comparable.
-					await self.emit({"type": "preview-share", "task": task.id, "name": model, "unit": unit, "seconds": spent})
-				await self.emit({"type": "progress", "task": task.id, "shard": shard, "machine": lease.machine, "stage": "done",
+					await hub.emit({"type": "preview-share", "task": task.id, "name": model, "unit": unit, "seconds": spent})
+				await hub.emit({"type": "progress", "task": task.id, "shard": shard, "machine": lease.machine, "stage": "done",
 					"model": "", "line": "", "quiet": 0, "seconds": round(spent)})
 			elif lease or shard not in task.queue:
 				continue  # still building: left alone
@@ -109,13 +114,13 @@ class PreviewJobs:
 			else:
 				task.skipped.add(shard)
 			task.previews_waiting.discard(shard)
-			await self.emit({"type": "previews-done", "task": task.id, "shard": shard, "left": len(task.previews_waiting)})
+			await hub.emit({"type": "previews-done", "task": task.id, "shard": shard, "left": len(task.previews_waiting)})
 			if shard not in task.done and shard not in task.skipped:
-				await self.finished_shard(task, shard, {"summary": SKIPPED_SUMMARY}, "-")
-		self.save_tasks()
-		if not task.previews_waiting and getattr(task, "completed", False):
-			self.tasks.pop(task.id, None)
-		await self.deal()
+				await hub.unit_done(task, shard, {"summary": SKIPPED_SUMMARY}, "-")
+		hub.save_tasks()
+		if not task.previews_waiting and task.completed:
+			hub.tasks.pop(task.id, None)
+		await hub.deal()
 
 	async def publish(self, task, name, source):
 		"""Puts a model's renders beside it (preview.png, the four turns as
@@ -124,7 +129,7 @@ class PreviewJobs:
 		model = os.path.join(ROOT, "art", "models", name)
 		if not os.path.isfile(os.path.join(source, "preview.png")):
 			task.shown[name] = f"FAILED, see {os.path.join(source, 'build.log')}"
-			await self.emit({"type": "preview", "task": task.id, "name": name, "path": task.shown[name]})
+			await self.hub.emit({"type": "preview", "task": task.id, "name": name, "path": task.shown[name]})
 			return
 		os.makedirs(model, exist_ok=True)
 		shutil.copy(os.path.join(source, "preview.png"), os.path.join(model, "preview.png"))
@@ -138,26 +143,21 @@ class PreviewJobs:
 				file.write(hashlib.sha1(open(script, "rb").read()).hexdigest()[:16] + "\n")
 		for stored in ("preview.png", "views.png", "previewed.txt"):
 			if os.path.isfile(os.path.join(model, stored)):
-				await self.relay(task, "repo", os.path.relpath(os.path.join(model, stored), ROOT))
+				await self.hub.relay(task, "repo", os.path.relpath(os.path.join(model, stored), ROOT))
 		shown = sheet if os.path.isfile(sheet) else os.path.join(model, "preview.png")
 		task.shown[name] = os.path.relpath(shown, ROOT)
-		await self.emit({"type": "preview", "task": task.id, "name": name, "path": task.shown[name]})
+		await self.hub.emit({"type": "preview", "task": task.id, "name": name, "path": task.shown[name]})
 
 	async def replay_previews(self, task, socket):
-		"""For a session that comes back to a task (watch-task): what it may
-		have missed while its connection was down. Every preview published so
-		far, stored files and event, and every unit that is over, so it
-		neither waits for nor reports as stalled what already ended."""
+		"""For a session that comes back to a task (watch-task): every preview
+		published while its connection was down, stored files and event (the
+		hub then tells it the units that are over)."""
 		for name, path in list(task.shown.items()):
 			model = os.path.join(ROOT, "art", "models", name)
 			for stored in ("preview.png", "views.png", "previewed.txt"):
 				if not path.startswith("FAILED") and os.path.isfile(os.path.join(model, stored)):
-					await self.relay(task, "repo", os.path.relpath(os.path.join(model, stored), ROOT), to=socket)
+					await self.hub.relay(task, "repo", os.path.relpath(os.path.join(model, stored), ROOT), to=socket)
 			await socket.send(json.dumps({"type": "preview", "task": task.id, "name": name, "path": path}))
-		for shard in range(1, task.count + 1):
-			if task.unit_over(shard):
-				await socket.send(json.dumps({"type": "progress", "task": task.id, "shard": shard, "machine": "", "stage": "done",
-					"model": "", "line": "", "quiet": 0, "seconds": 0}))
 
 	@staticmethod
 	def preview_model(task, shard, unit):
@@ -211,7 +211,7 @@ class PreviewJobs:
 			return False
 		if any(task.share_model(shard) == model and model not in lease.swapped for shard, lease in task.leases.items()):
 			return False
-		idle = any(machine.socket is not None and not machine.lease and not machine.cancelling for machine in self.roster.values())
+		idle = any(machine.socket is not None and not machine.lease and not machine.cancelling for machine in self.hub.roster.values())
 		return not (idle and task.held_until <= time.time() and any(task.share_model(shard) == model for shard in task.queue))
 
 	async def announce_bakes(self, task, model, only=None):
@@ -219,8 +219,8 @@ class PreviewJobs:
 		bakes, and whether the swap is over (bakes_done)."""
 		message = json.dumps({"type": "bakes-ready", "task": task.id, "name": model, "done": self.bakes_done(task, model),
 			"commits": task.bake_commits.get(model, [])})
-		for machine in [only] if only else self.connected():
-			await self.send_to(machine, message)
+		for machine in [only] if only else self.hub.connected():
+			await self.hub.send_to(machine, message)
 
 	async def bakes_pushed(self, task, event, lease=None, machine=None):
 		"""A unit has baked the chunks it claimed of a model's textures and
@@ -273,8 +273,8 @@ class PreviewJobs:
 		if shard not in task.previews_waiting:
 			return
 		task.previews_waiting.discard(shard)
-		self.save_tasks()
-		await self.emit({"type": "previews-done", "task": task.id, "shard": shard, "left": len(task.previews_waiting)})
-		await self.unit_over(task, shard)
-		if not task.previews_waiting and getattr(task, "completed", False):
-			self.tasks.pop(task.id, None)
+		self.hub.save_tasks()
+		await self.hub.emit({"type": "previews-done", "task": task.id, "shard": shard, "left": len(task.previews_waiting)})
+		await self.hub.unit_over(task, shard)
+		if not task.previews_waiting and task.completed:
+			self.hub.tasks.pop(task.id, None)

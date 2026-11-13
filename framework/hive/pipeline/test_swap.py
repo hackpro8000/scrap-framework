@@ -1,14 +1,15 @@
 """Cases for the bake swap and the early publish (hub_previews.py), run by
-test_queue.py with its other cases. The fake machines here do what the engine
-does through the real agent: claim bake chunks until none are left, push,
-wait in the swap until the hub says it is over (asking again as the agent
-does, with no time limit), paint, claim renders, and send their share."""
+the hive's test runner through tests.py with the other pipeline cases. The
+fake machines here do what the engine does through the real agent: claim
+bake chunks until none are left, push, wait in the swap until the hub says
+it is over (asking again as the agent does, with no time limit), paint,
+claim renders, and send their share."""
 import asyncio
 import json
 import os
 import time
 
-import hub_previews
+from pipeline import hub_previews
 
 BAKE_CHUNKS = 6
 RENDERS = 3  # preview.png and two turns: short of four, so no montage runs
@@ -16,7 +17,7 @@ REAL_ROOT = hub_previews.ROOT
 
 
 def cases(q):
-	"""The cases, given test_queue's own module (its Hub, Fake, post, check)."""
+	"""The cases, given test_build's module (its Hub, Fake, post, check)."""
 
 	class Sharer(q.Fake):
 		"""A machine on one share of a model: `bake` seconds a chunk, `paint`
@@ -244,22 +245,23 @@ def cases(q):
 		one has been handed out, none has come back, and each claimant has delivered."""
 		at = await q.Hub().start()
 		try:
-			task = q.hub.Task("tjobs", "abc", False, 2, ["Model"], results=os.path.join(at.folder, "results"))
-			first, second = q.hub.Lease(1, "g1"), q.hub.Lease(2, "g2")
+			pipe = q.pipe(at)
+			task = q.BuildTask(pipe, "tjobs", "abc", False, 2, ["Model"], results=os.path.join(at.folder, "results"))
+			first, second = q.ClaimLease(1, "g1"), q.ClaimLease(2, "g2")
 			task.leases = {1: first, 2: second}
 			key = ("Model", "render")
-			claim = lambda lease, number: at.c.next_job(task, lease, {"name": "Model", "kind": "render", "total": 2, "id": number})
-			q.check(not at.c.jobs_in(task, key), "in before any claim said how many jobs there are")
-			q.check(claim(first, 1) == 0 and not at.c.jobs_in(task, key), "in with a job never handed out")
-			at.c.settle(first, "Model")
-			q.check(not at.c.jobs_in(task, key), "in with one job delivered and one never handed out")
-			q.check(claim(second, 1) == 1 and not at.c.jobs_in(task, key), "in with a job claimed and not delivered")
+			claim = lambda lease, number: pipe.next_job(task, lease, {"name": "Model", "kind": "render", "total": 2, "id": number})
+			q.check(not pipe.jobs_in(task, key), "in before any claim said how many jobs there are")
+			q.check(claim(first, 1) == 0 and not pipe.jobs_in(task, key), "in with a job never handed out")
+			pipe.settle(first, "Model")
+			q.check(not pipe.jobs_in(task, key), "in with one job delivered and one never handed out")
+			q.check(claim(second, 1) == 1 and not pipe.jobs_in(task, key), "in with a job claimed and not delivered")
 			task.returned[key] = [1]
 			second.claims.clear()
-			q.check(not at.c.jobs_in(task, key), "in with a job given back by a lost lease")
+			q.check(not pipe.jobs_in(task, key), "in with a job given back by a lost lease")
 			task.returned[key] = []
 			second.claims.append([key, 1, True])
-			q.check(at.c.jobs_in(task, key), "not in with both jobs delivered")
+			q.check(pipe.jobs_in(task, key), "not in with both jobs delivered")
 			return "render jobs count as in only with the total known, all handed out, none returned, each delivered"
 		finally:
 			await at.stop()

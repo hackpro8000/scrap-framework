@@ -38,8 +38,8 @@ import urllib.error
 import urllib.request
 import uuid
 
-import bundle
 from game_settings import config_dir, setting
+from pipeline import bundle
 
 API = os.environ.get("ROBLOX_ASSETS_API", "https://apis.roblox.com/assets/v1")
 START = float(os.environ.get("UPLOAD_START", "32"))

@@ -1,5 +1,7 @@
-"""The Agent: its state, the connection to the coordinator (hello, reading
-events), the idle/max clock, and the reconnect loop; the rest is in its mixins."""
+"""The Agent: its state, the connection to the hub (hello, reading events),
+the idle/max clock, and the reconnect loop; the rest is in its mixins. What
+a unit is, and every message about one beyond take, cancel and progress,
+comes from its plugins (plugins.py)."""
 import asyncio
 import json
 import os
@@ -13,19 +15,21 @@ import websockets
 from agent import common, machine
 from agent.common import ADDRESS_BRANCH, LOST_MINUTES, MAX_MESSAGE, REQUIRED_TOOLS, TUNNEL_ALERT_FAILURES, alert, say
 from agent.machine import ensure_tools, http_status, identity_token
-from agent.previews import Previews
+from agent.plugins import AgentPlugins
 from agent.sending import Sending
 from agent.units import Units
-from agent.uploads import Uploads
 from agent.update import Updates, current_commit, lifetime_left
-from agent.engine import EngineUnits
+import hive_plugins  # noqa: E402
 import wire  # noqa: E402
 
 
-class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
-	def __init__(self, url, layout, index, count, idle_minutes, max_minutes):
-		self.url, self.layout, self.index, self.count = url, layout, int(index), int(count)
-		self.arguments = [str(url), str(layout), str(index), str(count), str(idle_minutes), str(max_minutes)]  # for reexec
+class Agent(Units, Sending, Updates):
+	def __init__(self, url, target, index, count, idle_minutes, max_minutes, plugins=None):
+		"""target: the second argument the standby workflow passes, handed on to
+		the plugins (what this machine's units work on). plugins: the names of
+		the plugins to load; None for game.toml's."""
+		self.url, self.target, self.index, self.count = url, target, int(index), int(count)
+		self.arguments = [str(url), str(target), str(index), str(count), str(idle_minutes), str(max_minutes)]  # for reexec
 		self.published = url == "published"
 		self.machine = self.index if self.count == 0 else None
 		self.idle_seconds = int(idle_minutes) * 60
@@ -36,26 +40,20 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 		self.update_failed = set()
 		self.updating = False
 		self.idle_until = time.monotonic() + self.idle_seconds
-		# A unit is (task id, shard); a machine may do several units of one task.
-		self.built = {}  # unit -> results folder
-		self.by_branch = {}  # task id -> whether its objects went to a branch
+		# A unit is (task id, slot); a machine may do several units of one task.
 		self.git_lock = threading.Lock()
-		self.handling = set()  # units with a handle() still running
+		self.handling = set()  # units with a runner still going
 		self.cancelling = {}  # unit -> its cancel() while it runs (stop_unit)
-		# unit -> {"cancelled": bool, "processes": set of Popen, "task": its asyncio task}
+		# unit -> {"cancelled": bool, "processes": set of Popen, "lease", "task": its asyncio task}
 		self.units = {}
-		self.claims = {}  # claim number -> future for the job the coordinator gives it
-		self.claim_number = 0
-		self.timings = {}  # (task id, model) -> seconds per stage, reported when the model is done
-		self.bakes_ready = {}  # (task id, model) -> future for the commits of every machine's bakes, set when the swap is over
 		self.activities = {}  # unit -> what this machine is doing for it (heartbeat() reports them)
 		self.stopped = False
 		self.failures = 0  # connections in a row that failed or dropped (ALERT TUNNEL_DOWN)
-		self.address = url  # the coordinator address last dialled
-		self.uploader = None
+		self.address = url  # the hub address last dialled
 		self.socket = None
 		self.loop = None
-		self.inbox = os.path.join(os.getcwd(), "upload-inbox")
+		self.plugins = AgentPlugins(self)
+		self.plugins.loaded = hive_plugins.load(self.plugins, plugins)
 
 	def published_address(self):
 		# Not through FETCH_HEAD: a task's checkout may be reading it.
@@ -70,10 +68,12 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 		url = await asyncio.to_thread(self.published_address) if self.published else self.url
 		self.address = url
 		async with websockets.connect(url, max_size=MAX_MESSAGE, ping_interval=20, ping_timeout=120) as socket:
-			# The units still under way, so a restarted coordinator gives them back; not one being cancelled.
-			hello = {"type": "hello", "token": token, "shard": self.index, "count": self.count, "layout": self.layout,
-				"units": [list(unit) for unit in self.handling if unit not in self.cancelling],
-				"code": self.code_commit, "cargo": shutil.which("cargo") is not None}
+			# The units still under way, so a restarted hub gives them back; not one being cancelled.
+			# "shard" is this machine's number in its run, as the wire names it.
+			hello = {"type": "hello", "token": token, "shard": self.index, "count": self.count,
+				"units": [list(unit) for unit in self.handling if unit not in self.cancelling], "code": self.code_commit}
+			for fields in self.plugins.hello:
+				hello.update(fields())
 			if self.machine is not None:
 				hello["machine"] = self.machine
 			await socket.send(json.dumps(hello))
@@ -83,7 +83,7 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 			loop = self.loop
 
 			def forward_line(text):
-				# say() may run on an uploader thread.
+				# say() may run on a plugin's thread.
 				loop.call_soon_threadsafe(lambda: asyncio.ensure_future(socket.send(json.dumps({"type": "log", "text": text}))))
 
 			common.forward = forward_line
@@ -98,40 +98,26 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 				async for message in socket:
 					if isinstance(message, bytes):
 						header, data = wire.unpack(message)
-						try:
-							await self.receive_upload(socket, header, data)
-						except Exception as error:
-							say(f"upload {header.get('id')}: could not start: {error}")
-							await socket.send(json.dumps({"type": "uploaded", "id": header.get("id"), "error": str(error)}))
+						handler = self.plugins.files.get(header.get("type"))
+						if handler:
+							await handler(socket, header, data)
 						continue
 					event = json.loads(message)
-					if event["type"] == "uploader":
-						self.start_width, self.start_known = event.get("width"), event.get("known")
-						say(f"this machine uploads for the coordinator, starting {self.start_width or 'fresh'} at once")
-					elif event["type"] == "fetch-objects":
-						asyncio.create_task(self.receive_fetch(socket, event))
-					elif event["type"] == "task":
+					kind = event["type"]
+					if kind in self.plugins.units:
 						self.take(event)
-					elif event["type"] == "cancel":
+					elif kind == "cancel":
 						self.stop_unit(event)
-					elif event["type"] == "engine":
-						self.take_engine(event)
-					elif event["type"] in ("hub", "update"):
+					elif kind in ("hub", "update"):
 						self.want_update(event.get("commit"))
-					elif event["type"] == "claimed":
-						claim = self.claims.get(event["id"])
-						if claim and not claim.done():
-							claim.set_result(event["job"])
-					elif event["type"] == "bakes-ready":
-						ready = self.bakes_ready.get((event["task"], event["name"]))
-						if ready and not ready.done() and event.get("done", True):
-							ready.set_result(event["commits"])
-					elif event["type"] == "active":
-						# The coordinator on this machine has work going for others.
+					elif kind == "active":
+						# The hub on this machine has work going for others.
 						self.idle_until = time.monotonic() + self.idle_seconds
-					elif event["type"] == "stop":
+					elif kind == "stop":
 						self.stopped = True
 						return
+					elif kind in self.plugins.messages:
+						self.plugins.messages[kind](socket, event)
 			finally:
 				beat.cancel()
 
@@ -146,7 +132,7 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 	async def main(self):
 		# Out of the environment before any child process can see it.
 		machine.WORKER_TOKEN = os.environ.pop("COORDINATOR_WORKER_TOKEN", "")
-		# The coordinator's own; no build on this machine needs it.
+		# The hub's own; no unit on this machine needs it.
 		os.environ.pop("COORDINATOR_WORKER_KEY", None)
 		await asyncio.to_thread(ensure_tools)
 		self.backoff = 1
@@ -175,6 +161,6 @@ class Agent(Units, Sending, Previews, Uploads, Updates, EngineUnits):
 				alert(f"ALERT TUNNEL_DOWN: S{self.index} failed to reach {self.address} {self.failures} times in a row ({answered}: {error}) "
 					"| machine 1's tunnel or coordinator is down; if it stays down, start a new run (scripts/standby-start.sh)")
 			await asyncio.sleep(self.backoff)
-			# A numbered machine waits for the next coordinator, a minute apart.
+			# A numbered machine waits for the next hub, a minute apart.
 			self.backoff = min(60 if self.published else 30, self.backoff * 2)
 		say("standby over")

@@ -1,14 +1,17 @@
-"""Agent mixin: a unit's share of the previews, and the bake sharing behind
-them: the local claim server the engine asks (work.rs), claims, bake swaps."""
+"""PipelineAgent mixin: a unit's share of the previews, and the bake sharing
+behind them: the local claim server the engine asks (work.rs), claims, bake swaps."""
 import asyncio
 import json
 import os
 import subprocess
 import time
 
-from agent.common import CLAIM_TRIES, CLAIM_WAIT_SECONDS, ROOT, SCRIPTS, say
-from agent.machine import push_bakes, push_preview, trim_log
-import commits  # noqa: E402
+from agent.common import ROOT, SCRIPTS, say
+from pipeline import commits
+from pipeline.agent_pushes import push_bakes, push_preview, trim_log
+
+CLAIM_WAIT_SECONDS = 15
+CLAIM_TRIES = 4
 
 
 class Previews:
@@ -16,6 +19,7 @@ class Previews:
 		"""Renders this unit's share of the task's previews once its build
 		result has gone (scripts/standby-previews.sh), sends them, then says
 		so, even with nothing to render, so the coordinator can count units."""
+		agent = self.agent
 		identity, shard = unit
 		names = next((line[8:] for line in text.splitlines() if line.startswith("preview=")), "")
 		if not names:
@@ -37,10 +41,10 @@ class Previews:
 						# A second back, for a file saved in the second this began.
 						server = await self.claim_server(unit, model, out, time.time() - 1, work)
 						env["WORK_PORT"] = str(server.sockets[0].getsockname()[1])
-						self.begin(unit, "bake", log, model)
+						agent.begin(unit, "bake", log, model)
 					else:
-						self.begin(unit, "render", log, model)
-					await asyncio.to_thread(self.run_process, work, [os.path.join(SCRIPTS, "standby-previews.sh"), model, "1", "1", out],
+						agent.begin(unit, "render", log, model)
+					await asyncio.to_thread(agent.run_process, work, [os.path.join(SCRIPTS, "standby-previews.sh"), model, "1", "1", out],
 						stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 				finally:
 					# Closed on a cancel too, so a killed engine's port takes no more claims.
@@ -54,18 +58,18 @@ class Previews:
 			# Machine-seconds this share took, for cost-sized shares (client.py).
 			seconds = round(time.monotonic() - began, 1)
 			if pushed:
-				await self.send(json.dumps({"type": "preview-pushed", "task": identity, "shard": shard, "name": model, "commit": pushed,
+				await agent.send(json.dumps({"type": "preview-pushed", "task": identity, "shard": shard, "name": model, "commit": pushed,
 					"seconds": seconds}))
 			else:
 				# GitHub turned the push away: the tunnel is slower, but it works.
 				for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
 					with open(os.path.join(folder, name), "rb") as file:
 						data = file.read()
-					await self.send_file(unit, os.path.join("previews", model, name), data)
-				await self.send(json.dumps({"type": "preview-ready", "task": identity, "shard": shard, "name": model, "seconds": seconds}))
+					await agent.send_file(unit, os.path.join("previews", model, name), data)
+				await agent.send(json.dumps({"type": "preview-ready", "task": identity, "shard": shard, "name": model, "seconds": seconds}))
 			self.report_timing(identity, model)
-		await self.send(json.dumps({"type": "previews-done", "task": identity, "shard": shard}))
-		self.idle_until = time.monotonic() + self.idle_seconds
+		await agent.send(json.dumps({"type": "previews-done", "task": identity, "shard": shard}))
+		agent.idle_until = time.monotonic() + agent.idle_seconds
 
 	def report_timing(self, identity, share):
 		timing = self.timings.pop((identity, share.split("@")[0]), None)
@@ -88,14 +92,14 @@ class Previews:
 		timing = self.timings.setdefault((identity, model), {})
 		asked = time.monotonic()
 		timing.setdefault(f"first_{kind}", asked)
-		self.moved(unit)
+		self.agent.moved(unit)
 		message = json.dumps({"type": "claim", "task": identity, "shard": shard, "name": model, "kind": kind, "total": total, "id": number,
 			"lease": work.get("lease")})
 		for _ in range(CLAIM_TRIES):
 			if work["cancelled"]:
 				return -1
 			self.claims[number] = asyncio.get_running_loop().create_future()
-			await self.send(message)
+			await self.agent.send(message)
 			try:
 				job = await asyncio.wait_for(self.claims[number], CLAIM_WAIT_SECONDS)
 				now = time.monotonic()
@@ -137,13 +141,14 @@ class Previews:
 		baker that dies loses its lease, and the coordinator ends the swap or
 		has another machine bake its chunks. The push is said again every
 		CLAIM_WAIT_SECONDS and answered with where the swap stands, so an
-		answer lost over a reconnect is asked for again."""
+		answer lost over a reconnect is asked for again. The swap is a
+		waiting stage: never quiet in the heartbeat."""
 		identity, shard = unit
 		model = share.split("@")[0]
 		log = os.path.join(out, "previews", share, "build.log")
 		timing = self.timings.setdefault((identity, model), {})
 		timing["bake_end"] = time.monotonic()
-		self.begin(unit, "swap", log, share)
+		self.agent.begin(unit, "swap", log, share, waiting=True)
 		ready = self.bakes_ready[(identity, model)] = asyncio.get_running_loop().create_future()
 		try:
 			mine = await asyncio.to_thread(push_bakes, model, share, out, since)
@@ -151,7 +156,7 @@ class Previews:
 			while True:
 				if work["cancelled"]:
 					return
-				await self.send(json.dumps({"type": "bakes-pushed", "task": identity, "shard": shard, "share": share, "commit": mine,
+				await self.agent.send(json.dumps({"type": "bakes-pushed", "task": identity, "shard": shard, "share": share, "commit": mine,
 					"lease": work.get("lease")}))
 				try:
 					commits = await asyncio.wait_for(asyncio.shield(ready), CLAIM_WAIT_SECONDS)
@@ -167,7 +172,7 @@ class Previews:
 		timing["fetched"] = time.monotonic()
 		for error in [result for result in fetched if isinstance(result, Exception)]:
 			say(f"task {identity}: could not fetch bakes of {model}: {error}")
-		self.begin(unit, "render", log, share)
+		self.agent.begin(unit, "render", log, share)
 
 	def fetch_objects(self, commit, into):
 		"""Machine 1 takes a builder's objects, and every machine the others'

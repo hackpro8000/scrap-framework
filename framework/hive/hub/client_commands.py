@@ -1,5 +1,7 @@
 """client.py's short commands: status, machines, numbered, clear-tasks,
-mint-workers, wait-machines, stop-machines, open-workers, machine-tokens."""
+mint-workers, wait-machines, stop-machines, open-workers, machine-tokens;
+and the ALERT lines a status answer calls for (LIFETIME too, which a
+plugin's watch over a task also prints)."""
 import asyncio
 import json
 import os
@@ -7,9 +9,29 @@ import sys
 
 import wire
 from client_connection import alert, control
-from client_progress import SHORT_SECONDS, lifetime_alert
 from client_update import code_lines
 from hub_config import cache_dir
+
+SHORT_SECONDS = 120  # fewer machines than the run asked for, this long after: ALERT SHORT
+LIFETIME_WARN_SECONDS = 15 * 60
+
+
+def lifetime_alert(info, now):
+	"""ALERT LIFETIME when the hub ends within 15 minutes, by its idle or
+	its max limit; None when it doesn't or the hub doesn't know its limits."""
+	ends = []
+	if info.get("idle_minutes") and info.get("last_active"):
+		ends.append((info["last_active"] + info["idle_minutes"] * 60, f"{info['idle_minutes']}m idle limit"))
+	if info.get("max_minutes") and info.get("hub_started"):
+		ends.append((info["hub_started"] + info["max_minutes"] * 60, f"{info['max_minutes']}m max limit"))
+	if not ends:
+		return None
+	end, limit = min(ends)
+	left = end - now
+	if left > LIFETIME_WARN_SECONDS:
+		return None
+	advice = "post a task to restart its idle clock" if "idle" in limit else "start a new run (scripts/standby-start.sh) before it ends"
+	return f"ALERT LIFETIME: the hub ends in {max(0, left) / 60:.0f}m ({limit}) | {advice}"
 
 
 async def status(url):
@@ -75,7 +97,8 @@ async def clear_tasks(url):
 
 
 async def mint_workers(url, count):
-	"""One line per new worker: <shard> <count> <token>, for scripts/cloud-worker.sh."""
+	"""One line per new worker: <n> <count> <token>, for scripts/cloud-worker.sh
+	(the hub's answer names each worker's number "shard")."""
 	async with control(url, {"type": "mint-workers", "count": count}) as socket:
 		answer = json.loads(await socket.recv())
 	if answer["type"] != "workers":
@@ -135,7 +158,8 @@ async def stop_machines(url):
 
 
 async def machines(url):
-	"""One line per machine: what it is doing and when it last said so."""
+	"""One line per machine: what it is doing and when it last said so (its
+	heartbeat's stage and "model", what the stage works on)."""
 	async with control(url, {"type": "status"}) as socket:
 		answer = json.loads(await socket.recv())
 	for entry in answer.get("roster", []):

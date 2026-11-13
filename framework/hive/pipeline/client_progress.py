@@ -2,6 +2,7 @@
 summaries, and the ALERT/CLEARED lines (LIFETIME included) with their limits."""
 import time
 
+from client_commands import SHORT_SECONDS, lifetime_alert
 from client_connection import alert
 
 TICK_SECONDS = 5
@@ -10,30 +11,8 @@ STEP_STALL_SECONDS = 180  # no new line in a machine's log
 SILENT_STALL_SECONDS = 60  # no heartbeat from a machine (they come every 10s)
 WEDGED_SECONDS = 300  # the hub's default: a unit quiet this long is re-dealt (ALERT WEDGED warns at 80%)
 SILENT_REDEAL_SECONDS = 120  # the hub's default: a machine unheard this long loses its unit
-SHORT_SECONDS = 120  # fewer machines than the run asked for, this long after: ALERT SHORT
 ALL_FAILED_SECONDS = 30  # every shard failing within this: ALERT ALL_FAILED
 LOW_GB = 2  # free disk or available memory under this: ALERT LOW_RESOURCES
-
-
-LIFETIME_WARN_SECONDS = 15 * 60
-
-
-def lifetime_alert(info, now):
-	"""ALERT LIFETIME when the hub ends within 15 minutes, by its idle or
-	its max limit; None when it doesn't or the hub doesn't know its limits."""
-	ends = []
-	if info.get("idle_minutes") and info.get("last_active"):
-		ends.append((info["last_active"] + info["idle_minutes"] * 60, f"{info['idle_minutes']}m idle limit"))
-	if info.get("max_minutes") and info.get("hub_started"):
-		ends.append((info["hub_started"] + info["max_minutes"] * 60, f"{info['max_minutes']}m max limit"))
-	if not ends:
-		return None
-	end, limit = min(ends)
-	left = end - now
-	if left > LIFETIME_WARN_SECONDS:
-		return None
-	advice = "post a task to restart its idle clock" if "idle" in limit else "start a new run (scripts/standby-start.sh) before it ends"
-	return f"ALERT LIFETIME: the hub ends in {max(0, left) / 60:.0f}m ({limit}) | {advice}"
 
 
 class Progress:

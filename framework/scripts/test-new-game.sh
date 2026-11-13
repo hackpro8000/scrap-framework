@@ -61,7 +61,7 @@ allowed="framework/.names-allowed"
 [ -f "${allowed}" ] || allowed="${REPO}/framework/.names-allowed"
 patterns="${T}/allowed-patterns"
 rg '^\^framework/' "${allowed}" > "${patterns}" 2> /dev/null || : > "${patterns}"
-hits="$(rg -n -i 'scrap' --hidden -g '!.git' -g '!framework/.names-allowed' | rg -v '^game\.toml:[0-9]+:framework_source = ')"
+hits="$(rg -n -i 'scrap' --hidden -g '!.git' -g '!framework/.names-allowed' . | sd '^\./' '' | rg -v '^(\./)?game\.toml:[0-9]+:framework_source = ')"
 if [ -s "${patterns}" ]; then
 	left="$(printf '%s\n' "${hits}" | rg -v -f "${patterns}")"
 else

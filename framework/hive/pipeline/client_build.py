@@ -1,5 +1,33 @@
 """client.py build: checks the ref is on GitHub, posts the task and follows
-its events (results, uploads, previews, alerts) until it ends."""
+its events (results, uploads, previews, alerts) until it ends.
+
+  framework/hive/hub/client.py build <commit> [--no-upload] [--wait S] [--preview A,B] [--preview-only] [--units N]
+
+While it waits, `build` prints a summary every 30 seconds and a line starting
+STALL that names any machine that goes quiet (RECOVERED when it comes back),
+and abnormalities as ALERT <KIND>: lines (docs/plans/multi-machine.md, Alerts).
+
+`build` posts a task, which the hub cuts into units (one per machine
+connected, or --units N) and leases to machines as they come free
+(docs/plans/multi-machine.md, Pull queue). Preview shares are sized by each
+model's measured machine-seconds, kept in the game's cache folder (preview-seconds.json)
+and updated after every task. It prints each unit's result (S<i>, with the
+machine that built it) the moment it arrives, and ALERT REDEALT when the
+hub takes a unit back from a machine and gives it to another, then the upload's, and exits 0 when every machine built and every
+object uploaded. Results land in .standby-results/<task>/ for
+scripts/merge-shards.sh. With --preview, the machines also render those
+models with modelkit; each machine's renders come back with its result,
+often before the uploads end; the hub puts them in art/models/<Name>/
+(preview.png, views.png) and each is printed as it lands.
+
+From a hub on machine 1 (--relay-results) the results come over the
+connection as files, are written here under the same paths, and an uploaded
+task is merged here (scripts/merge-shards.sh).
+
+If the connection drops mid-task (the hub restarting), `build` reconnects
+for up to 60 s and watches the same task again; it exits 3 if the task is
+unknown there, the hub stays gone, or a build has used its 5 reconnects or
+180 s of reconnecting."""
 import asyncio
 import glob
 import json
@@ -14,9 +42,9 @@ import websockets
 
 from client_connection import (ROOT, MAX_MESSAGE, MAX_RECONNECTS, RECONNECT_BUDGET_SECONDS, RECONNECT_SECONDS,
 	alert, control, watch_again)
-from client_previews import preview_weights, save_preview_seconds
-from client_progress import TICK_SECONDS, Progress
-from client_relay import TASK_ID, merge_here, write_relayed
+from pipeline.client_previews import preview_weights, save_preview_seconds
+from pipeline.client_progress import TICK_SECONDS, Progress
+from pipeline.client_relay import TASK_ID, merge_here, write_relayed
 
 # Events about one task; any for another task is ignored.
 TASK_EVENTS = {"progress", "shard", "uploaded", "uploading", "preview", "previews-done", "finished", "redealt", "preview-share"}

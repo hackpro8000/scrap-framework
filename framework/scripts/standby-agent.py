@@ -23,7 +23,7 @@ only to the coordinator of this commit.
 
 Machine 1 may also be the uploader (the coordinator says so): objects
 arrive over the connection and are uploaded with this job's
-ROBLOX_API_KEY by framework/hive/hub/uploader.py, each asset id sent back
+ROBLOX_API_KEY by framework/hive/pipeline/uploader.py, each asset id sent back
 as soon as it's known.
 
 A dropped connection is retried with backoff (1 s doubling to 30 s); with
@@ -44,17 +44,15 @@ import os
 import sys
 
 # The agent's modules are the package framework/hive/agent, beside the game's
-# settings (framework/hive/game_settings.py).
+# settings (framework/hive/game_settings.py); the Agent loads the plugins
+# game.toml's hive_plugins names (framework/hive/hive_plugins.py).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hive"))
 from agent.common import (  # noqa: E402
-	ADDRESS_BRANCH, AUDIENCE, CLAIM_TRIES, CLAIM_WAIT_SECONDS, HEARTBEAT_SECONDS, LOG_LINES_KEPT, LOST_MINUTES, MAX_MESSAGE,
+	ADDRESS_BRANCH, AUDIENCE, HEARTBEAT_SECONDS, LOST_MINUTES, MAX_MESSAGE,
 	PART_BYTES, REQUIRED_TOOLS, ROOT, TUNNEL_ALERT_FAILURES, alert, forward, say)
 from agent.machine import (  # noqa: E402
-	WORKER_TOKEN, ensure_tools, free_space, http_status, identity_token, kill_tree, last_line, newest_log, push_bakes, push_preview,
-	remote_head, trim_log)
+	WORKER_TOKEN, ensure_tools, free_space, http_status, identity_token, kill_tree, last_line, newest_log)
 from agent.agent import Agent  # noqa: E402
-import commits  # noqa: E402,F401
-import uploader as uploading  # noqa: E402,F401
 import wire  # noqa: E402,F401
 
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""The build coordinator: hands tasks to the standby build machines the
-moment they're posted, takes their results back the moment they're done,
-and uploads their new objects as they arrive, all over live connections,
-so nothing polls.
+"""The hive's hub: hands units of work to the machines dialled into it the
+moment a task is posted, and takes their results back the moment they're
+done, all over live connections, so nothing polls. It knows nothing of the
+work itself: its plugins (game.toml's hive_plugins, hive_plugins.py) add the
+kinds of task, the requests that post them and the messages about them
+(hub_plugins.py).
 
-  framework/hive/hub/coordinator.py serve [--dry-upload] [--agent-host H]
-                                         [--agent-port P] [--control-port C]
-                                         [--control-host H] [--control-key K]
+  framework/hive/hub/coordinator.py serve [--agent-host H] [--agent-port P]
+                                         [--control-port C] [--control-host H]
+                                         [--control-key K] [--relay-results]
+                                         [the plugins' options]
 
 Machines (scripts/standby-agent.py) connect to the agent port, proving with
 GitHub's identity token that they are this repo's standby machines (oidc.py),
@@ -14,66 +17,46 @@ and keep the connection open. The session talks to the control port, which
 listens on this machine only (framework/hive/hub/client.py). Both carry JSON
 messages; a file is one binary message, its description and bytes together
 (wire.py). Everything the machines report, their log lines included, is
-written to the coordinator's log and passed on to the session as it happens.
+written to the hub's log and passed on to the session as it happens.
 
-Every admitted machine joins one roster under a stable name: g<shard> for a
+Every admitted machine joins one roster under a stable name: g<n> for a
 GitHub machine of the newest standby run (an older run's are closed),
 m<n> for a numbered machine, w<k> for a minted worker. A posted task is cut
 into N units (N = machines connected at post, at least 1, unless the
-session asks for a number); unit i means what shard i of N always meant:
-build shard i of N, then render preview unit i. The hub leases one unit at
-a time to each idle machine ({"type": "task", "id", "task", "shard",
-"count"}), oldest open task first; a machine that finishes its unit (done,
-and previews-done when the task has previews) takes the next. A lease
-comes back to the front of the queue when its machine's connection has
-been closed for LEASE_GRACE_SECONDS, it has sent nothing for
-LEASE_SILENT_SECONDS, or its unit has not moved for LEASE_WEDGED_SECONDS;
-the old holder is sent {"type": "cancel", "task", "shard"} and is not
-dealt again until it answers {"type": "idle"}. Anything it sends for that
-unit afterwards is dropped. The session sees {"type": "redealt"} when the
-unit goes to its new machine.
+session asks for a number). The hub leases one unit at a time to each idle
+machine (by default {"type": "task", "id", "task", "shard", "count",
+"lease"}; a task kind may send its own), oldest open task first; a machine
+whose unit is over takes the next. A lease comes back to the front of the
+queue when its machine's connection has been closed for LEASE_GRACE_SECONDS,
+it has sent nothing for LEASE_SILENT_SECONDS, or its unit has not moved for
+LEASE_WEDGED_SECONDS; the old holder is sent {"type": "cancel", "task",
+"shard"} and is not dealt again until it answers {"type": "idle"}. Anything
+it sends for that unit afterwards is dropped. The session sees
+{"type": "redealt"} when the unit goes to its new machine.
 
-Each unit sends back its results (summary.txt, parts.txt, manifest.json,
-costs.txt, error.txt, build.log) and the objects it built that have no
-asset (handed/names.tsv first, then each .glb), into
-.standby-results/<task>/S<i>/ as scripts/merge-shards.sh reads them. Each
-object goes to the uploader (uploader.py) as soon as it lands. Once every
-unit is done and every object uploaded, the task's uploaded.tsv is
-written and the session told.
+Each unit sends back its files, into .standby-results/<task>/S<i>/, and then
+"done"; once every unit is done the task finishes and the session is told.
 
-If a machine reconnects mid-unit, it is sent its unit again; it resends
-what it already built instead of building twice. Its hello names the units
-it is still working on, so a restarted coordinator gives them back to it.
+If a machine reconnects mid-unit, it is sent its unit again. Its hello names
+the units it is still working on, so a restarted hub gives them back to it.
 Posted tasks are kept in tasks.json beside the state file until they
-complete, so a restarted coordinator takes them back; a session that lost
-its connection asks for its task again with {"type": "watch-task", "task": id}.
+complete, so a restarted hub takes them back (through the plugin whose
+task kind wrote them); a session that lost its connection asks for its task
+again with {"type": "watch-task", "task": id}.
 
 A machine that is not a GitHub one (scripts/cloud-worker.sh) is admitted
 by a one-time token: {"type": "mint-workers", "count": n} (signed session
 only) makes n tokens, kept in memory only, one live connection per token.
 A numbered machine (scripts/cloud-worker.sh join) needs no minting: with
-COORDINATOR_WORKER_KEY in the coordinator's environment, a hello with
-"machine": n and "worker:<its lasting token>" (wire.machine_token) is
-admitted and takes units at once. GitHub machines are told
-{"type": "active"} when a task is posted or a unit finishes, so their idle
-clocks restart.
+COORDINATOR_WORKER_KEY in the hub's environment, a hello with "machine": n
+and "worker:<its lasting token>" (wire.machine_token) is admitted and takes
+units at once. GitHub machines are told {"type": "active"} when a task is
+posted or a unit finishes, so their idle clocks restart.
 
-With --uploads-on-machine (what scripts/coordinator.sh chooses when this
-session has no Roblox key), objects are uploaded by build machine 1 with the
-repo's ROBLOX_API_KEY secret instead: each goes to it over its live
-connection and its asset id comes straight back (RemoteUploader).
-
-With --git-link, the coordinator runs on build machine 1, for a session
-that can't connect out (scripts/standby-start.sh --on-machine): it takes
-build tasks from the build-queue branch (scripts/send-build.sh posts them
-there; the one link that still polls) and pushes each finished task's
-results, objects left out, as one commit to build-results/coordinator.
-
-With --relay-results (machine 1 with a control key), every result file but
-the objects, every preview image stored, and the task's uploaded.tsv and
-summary.txt also go to the task's session as one binary message each
-({"type": "result-file", "task", "root", "path"}), before "finished". The
-session merges; the coordinator doesn't.
+With --relay-results (machine 1 with a control key), every file a task
+stores also goes to the task's session as one binary message each
+({"type": "result-file", "task", "root", "path"}), before "finished"; that
+hub runs in a restart loop, so it takes hot updates (hub_update.py).
 """
 import argparse
 import asyncio
@@ -89,26 +72,23 @@ import websockets
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # hub_config first: it puts the game's settings (game_settings.py) on the path.
 from hub_config import (  # noqa: E402,F401
-	CHALLENGE_SECONDS, COMMIT, CONTROL_NAMESPACE, DEFAULT_LAYOUT, GONE_FORGOTTEN_SECONDS, KEEP_FINISHED, LEASE_GRACE_SECONDS,
-	LEASE_SILENT_SECONDS, LEASE_WEDGED_SECONDS, LINK_INTERVAL, LINK_RESULTS, MAX_CONTROL_MESSAGE, MAX_MESSAGE,
-	MAX_SHARD_BYTES, MAX_SHARD_FILES, MAX_SIGNATURE, MAX_WORKERS, MODEL_NAME, REPOSITORY, RESULTS, ROOT, STATE,
-	TAILNET, TASK_NAME, TASKS, WORKER_PREFIX, WORKFLOW, say)
-import uploader as uploading  # noqa: E402
-from units import Lease, Machine, Task, share_out  # noqa: E402,F401
-from remote_uploader import RemoteUploader  # noqa: E402
+	CHALLENGE_SECONDS, CONTROL_NAMESPACE, GONE_FORGOTTEN_SECONDS, KEEP_FINISHED, LEASE_GRACE_SECONDS,
+	LEASE_SILENT_SECONDS, LEASE_WEDGED_SECONDS, MAX_CONTROL_MESSAGE, MAX_MESSAGE, MAX_SIGNATURE, MAX_UNIT_BYTES,
+	MAX_UNIT_FILES, MAX_WORKERS, REPOSITORY, RESULTS, ROOT, STATE, TAILNET, TASK_NAME, TASKS, WORKER_PREFIX, WORKFLOW, say)
+import hive_plugins  # noqa: E402
+from units import Lease, Machine, Task  # noqa: E402,F401
+from hub_plugins import HubPlugins  # noqa: E402
 from hub_queue import LeaseQueue  # noqa: E402
 from hub_tasks import TaskBook  # noqa: E402
 from hub_machines import MachineLinks  # noqa: E402
-from hub_previews import PreviewJobs  # noqa: E402
 from hub_session import SessionControl, control_signers, local_or_tailnet  # noqa: E402
 from hub_update import HubUpdate, current_commit  # noqa: E402
-from hub_engine import EngineChecks  # noqa: E402
 
 
-class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionControl, HubUpdate, EngineChecks):
-	def __init__(self, layout, dry, test_without_identity=False, git_link=False, uploads_on_machine=False, relay_results=False,
-			timeouts=None, worker_key=None, tasks_file=None, results=None):
-		self.layout = layout
+class Coordinator(LeaseQueue, TaskBook, MachineLinks, SessionControl, HubUpdate):
+	def __init__(self, test_without_identity=False, relay_results=False, timeouts=None, worker_key=None, tasks_file=None,
+			results=None, plugins=None):
+		"""plugins: the names of the plugins to load; None for game.toml's."""
 		# Tests point these elsewhere (framework/hive/hub/test_queue.py).
 		self.tasks_file = tasks_file or TASKS
 		self.results = results or RESULTS
@@ -120,16 +100,8 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 		# How long reloaded tasks wait for their machines after a restart: two
 		# graces, the longest an agent's reconnect backoff sleeps (60 s).
 		self.restart_hold = 2 * self.grace
-		self.dry = dry
-		self.git_link = git_link
 		self.relay_results = relay_results
 		self.test_without_identity = test_without_identity
-		self.uploads_on_machine = uploads_on_machine
-		if uploads_on_machine:
-			self.uploader = RemoteUploader(layout)
-			self.uploader.sent_paths = {}
-		else:
-			self.uploader = uploading.Uploader(ROOT, layout, say, dry=dry, on_done=self.local_answer)
 		self.loop = None
 		# The newest GitHub standby run, how new it is, and how many machines it asked for (ALERT SHORT).
 		self.run_id = None
@@ -154,12 +126,16 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 		self.hosts = set()  # GitHub machines' connections, to keep their idle clocks going
 		# The hub's lifetime, for ALERT LIFETIME (client.py): the job's start
 		# (STANDBY_SINCE, so a restart keeps it), the last task activity, and the
-		# workflow's limits, which only a coordinator on machine 1 has.
+		# workflow's limits, which only a hub on machine 1 has.
 		self.started = float(os.environ.get("STANDBY_SINCE") or time.time())
 		self.last_active = time.time()
 		self.idle_minutes = int(os.environ.get("STANDBY_IDLE_MINUTES") or 0) or None
 		self.max_minutes = int(os.environ.get("STANDBY_MAX_MINUTES") or 0) or None
 		self.run_started = None  # when the newest run's first machine connected (ALERT SHORT)
+		self.refused_kinds = set()  # (machine name, kind) of messages no one handles, logged once
+		# Last, so a plugin's register sees a whole hub.
+		self.plugins = HubPlugins(self)
+		self.plugins.loaded = hive_plugins.load(self.plugins, plugins)
 
 	def lifetime(self):
 		return {"hub_started": self.started, "last_active": self.last_active,
@@ -167,10 +143,7 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 
 	def task_states(self):
 		"""Per open task, what client.py status needs to tell a stranded one."""
-		return {task.id: {"age": round(time.time() - task.started), "done": len(task.done), "count": task.count,
-			"queued": len(task.queue), "leased": len(task.leases),
-			"uploads_open": len(task.sent - task.answered), "previews_waiting": len(task.previews_waiting)}
-			for task in self.tasks.values()}
+		return {task.id: task.state() for task in self.tasks.values()}
 
 	def connected(self):
 		return [machine for machine in self.roster.values() if machine.socket is not None]
@@ -187,7 +160,7 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 
 	@staticmethod
 	def join_part(parts, header, data):
-		"""A big file comes in parts (standby-agent.py send_file), kept per
+		"""A big file comes in parts (agent/sending.py send_file), kept per
 		connection in `parts`; returns the whole file once its last part is
 		in, else None. A part out of order drops what was gathered."""
 		key = (header.get("task"), header.get("path"))
@@ -217,15 +190,15 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 		return found
 
 	def mint(self, count):
-		"""count tokens, each admitting one worker named w<k>. The shard and
+		"""count tokens, each admitting one worker named w<k>. The number and
 		count only number the printed lines (client.py mint-workers); a
 		worker takes units like any other machine."""
 		minted = []
-		for shard in range(1, count + 1):
+		for number in range(1, count + 1):
 			token = secrets.token_hex(32)
 			self.minted += 1
-			self.workers[token] = {"name": f"w{self.minted}", "shard": shard, "count": count, "socket": None}
-			minted.append({"shard": shard, "count": count, "token": token})
+			self.workers[token] = {"name": f"w{self.minted}", "shard": number, "count": count, "socket": None}
+			minted.append({"shard": number, "count": count, "token": token})
 		say(f"minted {count} workers ({', '.join(entry['token'][:6] for entry in minted)}...)")
 		return f"w{self.minted - count + 1}-w{self.minted}", minted
 
@@ -238,13 +211,12 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 				self.hosts.discard(socket)
 
 
-async def serve(arguments):
-	if arguments.test_without_identity and (arguments.agent_host != "127.0.0.1" or not (arguments.dry_upload or arguments.uploads_on_machine)):
-		sys.exit("--test-without-identity is only for a local dry run (agent host 127.0.0.1, --dry-upload)")
-	if arguments.relay_results and arguments.git_link:
-		sys.exit("--relay-results replaces --git-link; pick one")
-	coordinator = Coordinator(arguments.layout, arguments.dry_upload, arguments.test_without_identity, arguments.git_link,
-		arguments.uploads_on_machine, arguments.relay_results)
+async def serve(coordinator, arguments):
+	if arguments.test_without_identity and arguments.agent_host != "127.0.0.1":
+		sys.exit("--test-without-identity is only for a local run (agent host 127.0.0.1)")
+	coordinator.test_without_identity, coordinator.relay_results = arguments.test_without_identity, arguments.relay_results
+	# The plugins read their options (and may refuse them) before anything is served.
+	background = coordinator.plugins.start(vars(arguments))
 	coordinator.loop = asyncio.get_running_loop()
 	# The code this process loaded, and whether a loop restarts it (hub_update).
 	coordinator.code_commit, coordinator.restarts = current_commit(), arguments.relay_results
@@ -261,7 +233,7 @@ async def serve(arguments):
 	os.makedirs(os.path.dirname(STATE), exist_ok=True)
 	control_host = f"[{arguments.control_host}]" if ":" in arguments.control_host else arguments.control_host
 	state = {"pid": os.getpid(), "control": f"ws://{control_host}:{arguments.control_port}",
-		"agent_port": arguments.agent_port, "agent_host": arguments.agent_host, "dry_upload": arguments.dry_upload}
+		"agent_port": arguments.agent_port, "agent_host": arguments.agent_host, **coordinator.plugins.state}
 	if os.path.isfile(STATE):
 		try:
 			old = json.load(open(STATE))
@@ -272,20 +244,17 @@ async def serve(arguments):
 	with open(STATE, "w") as file:
 		json.dump(state, file)
 	say(f"machines on {arguments.agent_host}:{arguments.agent_port}, control on {arguments.control_host}:{arguments.control_port}"
-		+ (" (dry upload)" if arguments.dry_upload else "")
-		+ (" (machine 1 uploads)" if arguments.uploads_on_machine else "")
+		+ "".join(coordinator.plugins.notes)
 		+ (" (results relayed)" if arguments.relay_results else "")
 		+ (" (control needs the key)" if arguments.control_key else ""))
-	waits = [agents.wait_closed(), control.wait_closed()]
-	if arguments.git_link:
-		waits.append(coordinator.link())
-	await asyncio.gather(*waits)
+	await asyncio.gather(agents.wait_closed(), control.wait_closed(), *background)
 
 
 def main():
+	# The plugins are loaded first: they add serve's options of their own.
+	coordinator = Coordinator()
 	parser = argparse.ArgumentParser()
 	parser.add_argument("command", choices=["serve"])
-	parser.add_argument("--layout", default=DEFAULT_LAYOUT)
 	parser.add_argument("--agent-host", default="127.0.0.1")
 	parser.add_argument("--agent-port", type=int, default=8765)
 	# Machine 1 puts control on its tailnet address so a session can attach.
@@ -294,15 +263,14 @@ def main():
 	# Required off this machine and the tailnet (a tunnel): the one public
 	# key whose signature admits a control connection.
 	parser.add_argument("--control-key", default="")
-	parser.add_argument("--dry-upload", action="store_true")
 	# Local tests only: agents may connect with the token "test". Never with
 	# a tunnel, which makes every outside connection look local.
 	parser.add_argument("--test-without-identity", action="store_true")
-	parser.add_argument("--git-link", action="store_true")
-	parser.add_argument("--uploads-on-machine", action="store_true")
 	# Results go back over the control link to the session that posted the task.
 	parser.add_argument("--relay-results", action="store_true")
-	asyncio.run(serve(parser.parse_args()))
+	for add in coordinator.plugins.options:
+		add(parser)
+	asyncio.run(serve(coordinator, parser.parse_args()))
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
-"""Cases for hot updates and engine checks (hub_update.py, hub_engine.py,
-client_update.py, framework/hive/agent/update.py), run by test_queue.py with
-its other cases. The hub's checkout and exit, and the real agent's checkout
-and re-execution, are replaced by seams that record what they were asked;
-the hub's "restart" is a new boot id on the same hub."""
+"""Cases for hot updates and engine checks (hub/hub_update.py,
+pipeline/hub_engine.py, hub/client_update.py, pipeline/client_engine.py,
+framework/hive/agent/update.py), run by the hive's test runner through
+tests.py with the other pipeline cases. The hub's checkout and exit, and the
+real agent's checkout and re-execution, are replaced by seams that record
+what they were asked; the hub's "restart" is a new boot id on the same hub."""
 import asyncio
 import contextlib
 import io
@@ -12,12 +13,13 @@ import secrets
 import sys
 
 import client_update
+from pipeline import client_engine
 
 OLD, NEW, NEWER = "a" * 40, "b" * 40, "c" * 40
 
 
 def cases(q):
-	"""The cases, given test_queue's own module (its Hub, Fake, post, check)."""
+	"""The cases, given test_build's module (its Hub, Fake, post, check)."""
 	client_update.POLL_SECONDS = 0.05
 	# The real agent's modules (loaded with scripts/standby-agent.py) say and alert on their own.
 	from agent import update as agent_update
@@ -208,7 +210,7 @@ def cases(q):
 	async def engine_case(machines, expect_code, expect_text, ran, idle):
 		at, fakes = await begin(machines)
 		try:
-			code, out = await captured(client_update.engine(at.control_url, NEW, 15))
+			code, out = await captured(client_engine.engine(at.control_url, NEW, 15))
 			q.check(code == expect_code and all(text in out for text in expect_text), f"engine: {code} {out!r}")
 			by_name = {fake.name: fake for fake in fakes}
 			q.check(all(by_name[name].checks for name in ran) and not any(by_name[name].checks for name in idle),

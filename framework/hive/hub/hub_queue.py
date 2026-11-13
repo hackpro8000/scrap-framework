@@ -3,12 +3,10 @@ back and dealing them again (a part of Coordinator)."""
 import asyncio
 import json
 import os
-import shutil
 import time
 import traceback
 
 from hub_config import GONE_FORGOTTEN_SECONDS, say
-from units import Lease
 
 
 class LeaseQueue:
@@ -24,90 +22,91 @@ class LeaseQueue:
 		except Exception:
 			pass
 
-	def unit_message(self, task, shard):
-		# The lease number comes back in claims, so a cancelled lease's late claim is refused (holding).
-		lease = task.leases.get(shard)
-		if task.engine:
-			return task.message(shard, lease)
-		return json.dumps({"type": "task", "id": task.id, "task": task.text(shard), "shard": shard, "count": task.count,
-			"lease": lease.number if lease else 0})
+	def unit_message(self, task, slot):
+		return task.message(slot, task.leases.get(slot))
 
-	async def tell_cancel(self, machine, task_id, shard):
-		machine.cancelling[(task_id, shard)] = time.time()
-		await self.send_to(machine, json.dumps({"type": "cancel", "task": task_id, "shard": shard}))
+	async def tell_cancel(self, machine, task_id, slot):
+		machine.cancelling[(task_id, slot)] = time.time()
+		await self.send_to(machine, json.dumps({"type": "cancel", "task": task_id, "shard": slot}))
+
+	def idle_machines(self):
+		"""Connected, holding nothing, every cancel answered, and on the hub's code (hub_update)."""
+		return [machine for machine in self.roster.values() if machine.socket is not None and not machine.lease
+			and not machine.cancelling and not self.stale(machine)]
 
 	async def deal(self):
 		"""Leases the front queued unit of the oldest open task to each idle
-		machine. Idle: connected, holding nothing, and every cancel answered.
-		A task reloaded after a restart waits out its hold. Engine checks go
-		first, to machines with cargo (hub_engine); a machine on other code
-		than the hub's is dealt nothing until it updates (hub_update)."""
-		await self.deal_engine()
+		machine. A task reloaded after a restart waits out its hold. Tasks
+		whose kind chooses its machines (Task.chooses) go first, each unit to
+		the idle machine the task picks."""
+		for task in [task for task in self.tasks.values() if task.chooses and task.queue]:
+			machine = task.choose(self.idle_machines())
+			if machine:
+				await self.grant(machine, task, task.queue.pop(0))
 		now = time.time()
 		for machine in list(self.roster.values()):
 			if machine.socket is None or machine.lease or machine.cancelling or self.stale(machine):
 				continue
-			task = next((task for task in self.tasks.values() if task.queue and task.held_until <= now and not task.engine), None)
+			task = next((task for task in self.tasks.values() if task.queue and task.held_until <= now and not task.chooses), None)
 			if not task:
 				return
 			await self.grant(machine, task, task.queue.pop(0))
 
-	async def grant(self, machine, task, shard):
+	async def grant(self, machine, task, slot):
 		"""A new lease of a unit already taken off the queue. A unit taken
 		back from a machine starts clean here, when it is dealt again."""
-		moved = task.moved_from.pop(shard, None)
-		if moved and shard not in task.done:
+		moved = task.moved_from.pop(slot, None)
+		if moved and slot not in task.done:
 			try:
-				self.clear_unit(task, shard, moved[2].number)
+				self.clear_unit(task, slot, moved[2].number)
 			except Exception:
 				# Left in place rather than lose the unit.
-				say(f"task {task.id}: could not move S{shard}'s old results aside:\n{traceback.format_exc()}")
+				say(f"task {task.id}: could not move S{slot}'s old results aside:\n{traceback.format_exc()}")
 		self.leases_made += 1
-		lease = Lease(self.leases_made, machine.name)
+		lease = task.new_lease(self.leases_made, machine.name)
 		# Leased before anything is awaited: a unit is never seen neither queued
-		# nor leased (a swap asks who may still bake, hub_previews.bakes_done).
-		await self.lease_to(machine, task, shard, lease)
+		# nor leased (a plugin may ask who still holds what).
+		await self.lease_to(machine, task, slot, lease)
 		if moved:
-			say(f"task {task.id}: S{shard} re-dealt from {moved[0]} to {machine.name}: {moved[1]}")
-			await self.emit({"type": "redealt", "task": task.id, "shard": shard, "from": moved[0], "to": machine.name, "reason": moved[1]})
+			say(f"task {task.id}: S{slot} re-dealt from {moved[0]} to {machine.name}: {moved[1]}")
+			await self.emit({"type": "redealt", "task": task.id, "shard": slot, "from": moved[0], "to": machine.name, "reason": moved[1]})
 
-	async def lease_to(self, machine, task, shard, lease):
-		task.leases[shard] = lease
-		machine.lease = (task.id, shard)
-		machine.dropped.discard((task.id, shard))
+	async def lease_to(self, machine, task, slot, lease):
+		task.leases[slot] = lease
+		machine.lease = (task.id, slot)
+		machine.dropped.discard((task.id, slot))
 		# A unit it was told to stop and now holds again is owed no cancel.
-		machine.cancelling.pop((task.id, shard), None)
-		await self.send_to(machine, self.unit_message(task, shard))
+		machine.cancelling.pop((task.id, slot), None)
+		await self.send_to(machine, self.unit_message(task, slot))
 
-	async def give_back(self, machine, task, shard):
+	async def give_back(self, machine, task, slot):
 		"""A machine reconnected still on a queued unit (its lease taken back
 		after the grace, or the hub restarted): it keeps the unit, with no
-		cancel. Its own returned lease comes back whole, claims and all."""
-		moved = task.moved_from.get(shard)
+		cancel. Its own returned lease comes back whole."""
+		moved = task.moved_from.get(slot)
 		if not moved or moved[0] != machine.name:
-			say(f"task {task.id}: {machine.name} is still on S{shard}; it keeps it")
-			await self.grant(machine, task, shard)
+			say(f"task {task.id}: {machine.name} is still on S{slot}; it keeps it")
+			await self.grant(machine, task, slot)
 			return
-		del task.moved_from[shard]
+		del task.moved_from[slot]
 		lease = moved[2]
-		for key, job, settled in lease.claims:
-			if not settled and job in task.returned.get(key, []):
-				task.returned[key].remove(job)
+		task.lease_given_back(lease)
 		lease.moved = time.time()
-		say(f"task {task.id}: {machine.name} came back still on S{shard}; its lease is given back")
-		await self.lease_to(machine, task, shard, lease)
+		say(f"task {task.id}: {machine.name} came back still on S{slot}; its lease is given back")
+		await self.lease_to(machine, task, slot, lease)
 
-	async def unit_over(self, task, shard):
-		"""Once a unit's build and previews are in, its machine is idle."""
-		if not task.unit_over(shard):
+	async def unit_over(self, task, slot):
+		"""Once a unit is over (Task.unit_over), its machine is idle."""
+		if not task.unit_over(slot):
 			return
-		lease = task.leases.pop(shard, None)
+		lease = task.leases.pop(slot, None)
 		if not lease:
 			return
 		machine = self.roster.get(lease.machine)
-		if machine and machine.lease == (task.id, shard):
+		if machine and machine.lease == (task.id, slot):
 			machine.lease = None
-		await self.emit({"type": "progress", "task": task.id, "shard": shard, "machine": lease.machine, "stage": "done",
+		# A progress event as the agents send them ("model" is the wire's name for what a stage works on).
+		await self.emit({"type": "progress", "task": task.id, "shard": slot, "machine": lease.machine, "stage": "done",
 			"model": "", "line": "", "quiet": 0, "seconds": round(time.time() - lease.dealt)})
 		await self.deal()
 
@@ -126,53 +125,33 @@ class LeaseQueue:
 			return f"wedged: its log quiet for {quiet:.0f}s"
 		return None
 
-	async def redeal(self, task, shard, reason):
+	async def redeal(self, task, slot, reason):
 		"""Puts a leased unit back at the front of the queue, tells its old
 		holder to stop, and deals it again."""
-		lease = task.leases.pop(shard, None)
+		lease = task.leases.pop(slot, None)
 		if not lease:
 			return
 		# Queued first, so nothing below can leave it neither queued nor leased.
 		# Its folder is cleared when it is dealt again (grant), not here: its
 		# machine may come back for it (give_back).
-		task.queue.insert(0, shard)
-		task.moved_from[shard] = (lease.machine, reason, lease)
-		# Jobs it claimed and never delivered go to whoever claims next.
-		for key, job, settled in lease.claims:
-			if not settled:
-				task.returned.setdefault(key, []).append(job)
-				task.returned[key].sort()
+		task.queue.insert(0, slot)
+		task.moved_from[slot] = (lease.machine, reason, lease)
+		task.lease_returning(lease)
 		machine = self.roster.get(lease.machine)
-		if machine and machine.lease == (task.id, shard):
+		if machine and machine.lease == (task.id, slot):
 			machine.lease = None
-			await self.tell_cancel(machine, task.id, shard)
-		say(f"task {task.id}: S{shard} taken back from {lease.machine}: {reason}")
+			await self.tell_cancel(machine, task.id, slot)
+		say(f"task {task.id}: S{slot} taken back from {lease.machine}: {reason}")
 		await self.deal()
-		# After the deal: a replacement already leased is waited for (bakes_done).
-		await self.claims_returned(task, lease)
+		# After the deal, so the task sees whether a replacement was dealt.
+		await task.lease_returned(lease)
 
-	def clear_unit(self, task, shard, lease_number):
+	def clear_unit(self, task, slot, lease_number):
 		"""A re-dealt unit starts clean: what its folder holds moves aside to
-		.redealt/ (merge-shards.sh reads only S*, the relay skips dot folders).
-		The objects stay: the uploader may be reading them, and the
-		replacement hands over the same ones under the same ids."""
-		folder = os.path.join(task.out, f"S{shard}")
-		task.received.pop(shard, None)
-		for key in [key for key in task.labels if key[0] == shard]:
-			del task.labels[key]
-		if not os.path.isdir(folder):
-			return
-		aside = os.path.join(task.out, ".redealt", f"S{shard}-L{lease_number}")
-		os.makedirs(aside, exist_ok=True)
-		for entry in os.listdir(folder):
-			if entry != "handed":
-				shutil.move(os.path.join(folder, entry), os.path.join(aside, entry))
-				continue
-			handed = os.path.join(folder, entry)
-			for name in os.listdir(handed):
-				if not name.endswith(".glb"):
-					os.makedirs(os.path.join(aside, entry), exist_ok=True)
-					shutil.move(os.path.join(handed, name), os.path.join(aside, entry, name))
+		.redealt/ (Task.set_aside; the relay skips dot folders)."""
+		folder = os.path.join(task.out, f"S{slot}")
+		aside = os.path.join(task.out, ".redealt", f"S{slot}-L{lease_number}")
+		task.set_aside(slot, folder, aside)
 
 	async def watch_leases(self):
 		"""Takes back leases whose machines are gone, silent or wedged, drops
@@ -184,10 +163,10 @@ class LeaseQueue:
 				now = time.time()
 				freed = False
 				for task in list(self.tasks.values()):
-					for shard, lease in list(task.leases.items()):
+					for slot, lease in list(task.leases.items()):
 						reason = self.lease_lost(self.roster.get(lease.machine), lease, now)
 						if reason:
-							await self.redeal(task, shard, reason)
+							await self.redeal(task, slot, reason)
 					if task.held_until and now >= task.held_until:
 						task.held_until, freed = 0, True
 				for machine in list(self.roster.values()):

@@ -1,13 +1,13 @@
-"""client.py's maintenance commands: `update <sha>` (hot update of the hub
-and every machine, hub_update.py) and `engine <sha>` (an engine compile on
-one machine, hub_engine.py), and the code lines `status` prints."""
+"""client.py's maintenance command `update <sha>` (hot update of the hub and
+every machine, hub_update.py), and the code lines `status` prints."""
 import asyncio
 import json
 import time
 
 import websockets
 
-from client_connection import MAX_MESSAGE, alert, connect, control
+from client_connection import connect, control
+from hub_update import SHA  # noqa: F401 (client.py checks a commit with it)
 
 POLL_SECONDS = 1.0  # between status polls while the hub and machines come back (tests shorten it)
 
@@ -59,45 +59,6 @@ async def update(url, commit, force, wait):
 	print(f"{len(on)} of {len(up)} machines on {commit[:12]} after {time.time() - began:.0f}s"
 		+ (f"; not yet: {' '.join(behind)}" if behind else "") + (f"; {told} were up before" if len(up) < told else ""), flush=True)
 	return 0 if not behind and len(up) >= told else 1
-
-
-async def engine(url, commit, wait):
-	"""Runs an engine check and prints its output as it comes; 0 when it compiled."""
-	began = time.time()
-	async with control(url, {"type": "engine", "commit": commit}, max_size=MAX_MESSAGE) as connection:
-		first = json.loads(await connection.recv())
-		if first.get("type") != "engine-posted":
-			print(f"engine check refused: {first.get('text', first)}", flush=True)
-			return 1
-		task = first["task"]
-		print(f"engine check {task} of {commit[:12]}; machines with cargo: {' '.join(first['cargo']) or 'none yet (it waits for one)'}", flush=True)
-		seen = 0
-		while True:
-			left = began + wait - time.time()
-			if left <= 0:
-				print(f"ENGINE TIMEOUT: no result in {wait}s", flush=True)
-				return 1
-			try:
-				event = json.loads(await asyncio.wait_for(connection.recv(), left))
-			except asyncio.TimeoutError:
-				continue
-			except websockets.ConnectionClosed:
-				print("the control connection dropped before the engine check ended", flush=True)
-				return 3
-			if event.get("task") != task:
-				continue
-			if event["type"] == "engine-output":
-				for line in event.get("lines", []):
-					print(line, flush=True)
-				seen += len(event.get("lines", []))
-			elif event["type"] == "redealt":
-				alert(f"ALERT REDEALT: engine check from {event['from']} to {event['to']}: {event['reason']} | nothing; it starts again there")
-			elif event["type"] == "engine-finished":
-				if not event["ok"] and not seen:
-					print("\n".join(event.get("tail", [])), flush=True)
-				print(f"ENGINE {'OK' if event['ok'] else 'FAILED'} on {event['machine']} in {event.get('seconds')}s"
-					+ ("" if event["ok"] else f" (exit {event.get('code')})"), flush=True)
-				return 0 if event["ok"] else 1
 
 
 def code_lines(answer):

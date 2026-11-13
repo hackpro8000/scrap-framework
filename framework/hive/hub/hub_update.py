@@ -31,10 +31,9 @@ class HubUpdate:
 	restarts = False  # only machine 1's --relay-results hub runs inside a restart loop
 
 	def note_code(self, machine, hello):
-		"""What a machine's hello says about its code and its compiler."""
+		"""What a machine's hello says about its code."""
 		code = hello.get("code")
 		machine.code = code if isinstance(code, str) and SHA.fullmatch(code) else None
-		machine.cargo = hello.get("cargo") is True
 
 	async def tell_code(self, machine):
 		if self.code_commit:

@@ -4,9 +4,9 @@ import asyncio
 import json
 import os
 
-import uploader as uploading
 import wire
 from hub_config import ROOT
+from pipeline import uploader as uploading
 
 
 class RemoteUploader:

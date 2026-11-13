@@ -23,3 +23,6 @@ chunk_studs = 128
 
 # Where framework/scripts/framework-update.sh fetches releases (git URL of the framework repository).
 framework_source = "https://github.com/hackpro8000/scrap-framework"
+
+# Hive plugins to load, space-separated (each is framework/hive/<name>/).
+hive_plugins = "pipeline"
