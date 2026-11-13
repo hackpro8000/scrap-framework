@@ -1,0 +1,20 @@
+# Settings the framework reads for this game. Flat: one key per line.
+
+name = "scrap-heist"
+display_name = "Scrap Heist"
+repository = "hackpro8000/scrap-framework"
+default_layout = "ServerMap"
+host_prefix = "scrap"
+cloud_environment = "scrap-map-build"
+# Models an engine proof on the build machines bakes, one per machine (space-separated).
+sample_models = "ProofChunks BrushRock BrushCanvas PlotMarker ScrapCrate YardFence BeltCrossing RoughRocks"
+
+# A character is a capsule this many studs across and tall; the camera sits
+# this high. Reviews and checks size walkways and views against them.
+character_width = 4
+character_height = 5.5
+camera_height = 5
+
+# Texture limits for models.
+texture_cap = 1024
+chunk_studs = 128

@@ -1,7 +1,7 @@
 name: proof
 
 # Compiles the engine on a GitHub machine and proves the proof models still
-# build byte for byte as the recorded baseline (scripts/proof.sh). With
+# build byte for byte as the recorded baseline (framework/scripts/proof.sh). With
 # record=true it prints a fresh baseline and keeps it as an artifact.
 
 on:
@@ -30,17 +30,17 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            tools/modelkit/target
-          key: proof-${{ hashFiles('tools/modelkit/Cargo.lock') }}
+            framework/engine/target
+          key: proof-${{ hashFiles('framework/engine/Cargo.lock') }}
       - name: Tools
         run: |
           command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep
       - name: Proof
         run: |
           if [ "${{ inputs.record }}" = "true" ]; then
-            scripts/proof.sh --record | tee baseline.txt
+            framework/scripts/proof.sh --record | tee baseline.txt
           else
-            scripts/proof.sh
+            framework/scripts/proof.sh
           fi
       - uses: actions/upload-artifact@v4
         if: always()
@@ -48,5 +48,5 @@ jobs:
           name: proof
           path: |
             baseline.txt
-            proof/differences.txt
+            proof/scrap-heist/differences.txt
           if-no-files-found: ignore
