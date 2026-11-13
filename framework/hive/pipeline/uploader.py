@@ -52,7 +52,7 @@ KEY_FILE = os.path.join(config_dir(), "roblox-api-key")
 CREATOR_ID = os.environ.get("ROBLOX_CREATOR_ID", "").strip()
 GATHER = float(os.environ.get("UPLOAD_GATHER", "0.25"))
 # Bytes stand in for how heavy a bundle is. Roblox refuses to parse a file
-# past some weight: two 4-7 MB remix junkrots (40-90 thousand triangles
+# past some weight: two 4-7 MB remixed models (40-90 thousand triangles
 # each) together failed every time, though one alone went, and bundles of
 # 18 MB of light objects went before. 7 MB keeps the heavy ones apart.
 BUNDLE_MOST = int(os.environ.get("UPLOAD_BUNDLE_MOST", str(7 * 2**20)))
