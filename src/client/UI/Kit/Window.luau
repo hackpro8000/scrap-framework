@@ -2,17 +2,16 @@
 --[[
 	Window
 
-	A window: a dimmed backdrop, the kit panel centred on screen, its candy
-	header with an icon and title at the left and the close button inside the
-	right end. The panel pops open from its centre and shrinks away on close.
-	The whole window scales down evenly to fit small screens, so the pixel
-	layout inside holds on phones.
+	A window: a dimmed backdrop, a panel centred on screen with a header
+	bar holding the title and a close button. The panel pops open from its
+	centre and shrinks away on close. The whole window scales down evenly to
+	fit small screens, so the pixel layout inside holds on phones.
 
 	Open state lives in Windows; tapping close or the backdrop calls
 	`onClose` if given, else closes the window.
 
-	Props: name, panel, header, title, icon?, sticky?, onClose?, children
-	(laid out in the panel's pixels)
+	Props: name, size (panel pixels), title, sticky?, onClose?, children
+	(laid out in the panel's pixels; content starts at Theme.BODY_Y)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,28 +19,22 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local React = require(ReplicatedStorage.Packages.React)
-local Juice = require(ReplicatedStorage.Shared.Config.Juice)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
 local Windows = require(script.Parent.Parent.Windows)
-local Art = require(script.Parent.Art)
 local KitButton = require(script.Parent.KitButton)
-local KitImage = require(script.Parent.KitImage)
 local KitText = require(script.Parent.KitText)
 
 local e = React.createElement
 
 local SCREEN_PAD = 24
 local POP_FROM = 0.85
-local TITLE_ICON = 28
-local CLOSE_INSET = 4
+local CLOSE_INSET = 6
 
 export type Props = {
 	name: string,
-	panel: string,
-	header: string,
+	size: Vector2,
 	title: string,
-	icon: string?,
 	sticky: boolean?,
 	onClose: (() -> ())?,
 	children: any?,
@@ -77,8 +70,7 @@ local function Window(props: Props)
 	-- Stays true through the closing shrink, so the panel animates out.
 	local shown, setShown = React.useState(isOpen)
 	local popRef = React.useRef(nil :: UIScale?)
-	local size = Art.size(props.panel)
-	local headerSize = Art.size(props.header)
+	local size = props.size
 	local fitScale = useFitScale(size)
 
 	React.useEffect(function()
@@ -87,15 +79,11 @@ local function Window(props: Props)
 			return nil
 		end
 		local pop = popRef.current
-		if not pop or not Juice.UI_TWEENS then
+		if not pop then
 			setShown(false)
 			return nil
 		end
-		local tween = TweenService:Create(
-			pop,
-			TweenInfo.new(Juice.POP_SECONDS * 0.6, Enum.EasingStyle.Quad),
-			{ Scale = POP_FROM }
-		)
+		local tween = TweenService:Create(pop, TweenInfo.new(Theme.POP_SECONDS * 0.6), { Scale = POP_FROM })
 		local connection = tween.Completed:Connect(function()
 			setShown(false)
 		end)
@@ -111,18 +99,9 @@ local function Window(props: Props)
 		if not (isOpen and shown and pop) then
 			return
 		end
-		if not Juice.UI_TWEENS then
-			pop.Scale = 1
-			return
-		end
 		pop.Scale = POP_FROM
-		TweenService
-			:Create(
-				pop,
-				TweenInfo.new(Juice.POP_SECONDS, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-				{ Scale = 1 }
-			)
-			:Play()
+		local info = TweenInfo.new(Theme.POP_SECONDS, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(pop, info, { Scale = 1 }):Play()
 	end, { isOpen, shown })
 
 	if not shown then
@@ -137,7 +116,7 @@ local function Window(props: Props)
 		end
 	end
 
-	local titleX = if props.icon then 10 + TITLE_ICON + 8 else 14
+	local closeSize = Theme.HEADER_H - 2 * CLOSE_INSET
 	return e(React.Fragment, nil, {
 		Backdrop = e("TextButton", {
 			Text = "",
@@ -161,39 +140,38 @@ local function Window(props: Props)
 			Fit = e("UIScale", { Scale = fitScale }),
 			-- The panel pops inside the holder, from its centre, so the pop
 			-- and the fit don't fight over one UIScale.
-			Panel = e("ImageLabel", {
-				BackgroundTransparency = 1,
+			Panel = e("Frame", {
 				Active = true,
-				Image = Art.image(props.panel),
+				BackgroundColor3 = Theme.Colors.Panel,
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.5),
 				Size = UDim2.fromOffset(size.X, size.Y),
 			}, {
 				Pop = e("UIScale", { ref = popRef }),
-				Header = e(KitImage, {
-					element = props.header,
-					position = UDim2.fromOffset(Art.HEADER_Y, Art.HEADER_Y),
-					zIndex = 2,
+				Corner = e("UICorner", { CornerRadius = Theme.CornerRadius }),
+				Ink = e("UIStroke", {
+					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+					Color = Theme.Colors.Ink,
+					Thickness = Theme.StrokeThickness,
+				}),
+				Header = e("Frame", {
+					BackgroundColor3 = Theme.Colors.Background,
+					Size = UDim2.new(1, 0, 0, Theme.HEADER_H),
+					ZIndex = 2,
 				}, {
-					Icon = if props.icon
-						then e(KitImage, {
-							element = props.icon,
-							size = TITLE_ICON,
-							anchor = Vector2.new(0, 0.5),
-							position = UDim2.new(0, 10, 0.5, 0),
-							zIndex = 3,
-						})
-						else nil,
+					Corner = e("UICorner", { CornerRadius = Theme.CornerRadius }),
 					Title = e(KitText, {
 						text = props.title,
-						textSize = 26,
-						position = UDim2.fromOffset(titleX, 0),
-						size = UDim2.fromOffset(headerSize.X - titleX - 40, headerSize.Y),
+						textSize = Theme.TextSize.Title,
+						position = UDim2.fromOffset(Theme.MARGIN, 0),
+						size = UDim2.new(1, -Theme.MARGIN - Theme.HEADER_H, 1, 0),
 						zIndex = 3,
 					}),
 					Close = e(KitButton, {
-						element = "ButtonClose",
+						text = "X",
 						onClick = close,
+						size = Vector2.new(closeSize, closeSize),
+						color = Theme.Colors.Bad,
 						anchor = Vector2.new(1, 0.5),
 						position = UDim2.new(1, -CLOSE_INSET, 0.5, 0),
 						zIndex = 3,

@@ -18,13 +18,20 @@ sourcemap.json
 # Python bytecode
 __pycache__/
 
-# modelkit build cache
+# Model engine build cache
 .cache/
 
-# modelkit outputs (.glb, textures, previews, screenshots) are rebuilt from model.luau
+# Framework build outputs
+framework/engine/target/
+framework/engine/bin/
+framework/uikit/target/
+
+# Model outputs (.glb, textures, previews, screenshots) are rebuilt from model.luau
 art/models/*/*
 !art/models/*/model.luau
 !art/models/*/sketch.png
+
+# Build machine results and upload staging
 .standby-results/
 /upload-inbox/
 /.objects-store/

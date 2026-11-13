@@ -6,30 +6,28 @@
 
 	ProfileStore gives each profile a **session lock**: while one server
 	has a player's profile open, no other server can open it. That is what
-	stops the classic duplication trick: join server A, trade away an item,
+	stops the classic duplication trick: join server A, give something away,
 	quickly join server B before A saves, and load the old copy that still
-	has the item. Server B simply can't load the profile until A releases it
-	(see docs/systems/data.md).
+	has it. Server B simply can't load the profile until A releases it.
 
 	If a profile can't be loaded, the player is kicked rather than playing
 	on a blank save that could later overwrite their real one.
 
 	Other services read and change their own part of the profile through
-	getData(). Scrap is the exception: only addScrap and trySpend write it,
-	so every scrap change goes through the same checks.
+	getData(). Coins are the exception: only addCoins and trySpend write
+	them, so every coin change goes through the same checks.
 
 	Public API:
 		DataService.getData(player): ProfileData?
 		DataService.isLoaded(player): boolean
 		DataService.forEachLoaded(callback)       -- now and for every future load
-		DataService.getScrap(player): number
-		DataService.addScrap(player, amount): boolean
+		DataService.getCoins(player): number
+		DataService.addCoins(player, amount): boolean
 		DataService.trySpend(player, amount): boolean
-		DataService.save(player)                  -- save now, after trades
-		DataService.resetData(player)             -- debug only
+		DataService.save(player)                  -- save now, after something important
 		DataService.profileLoaded: Signal(player, data)
 		DataService.profileReleasing: Signal(player, data)   -- last chance to write
-		DataService.scrapChanged: Signal(player, balance)
+		DataService.coinsChanged: Signal(player, balance)
 ]]
 
 local Players = game:GetService("Players")
@@ -47,13 +45,12 @@ local ProfileSchema = require(script.Parent.Parent.Data.ProfileSchema)
 local STORE_NAME = "PlayerProfiles"
 local KICK_LOAD_FAILED = "Your data couldn't be loaded. Please rejoin in a moment."
 local KICK_SESSION_ENDED = "Your data was opened on another server. Please rejoin."
-local KICK_DATA_RESET = "Your data was reset. Rejoin to start fresh."
 
 local DataService = {}
 
 DataService.profileLoaded = Signal.new()
 DataService.profileReleasing = Signal.new()
-DataService.scrapChanged = Signal.new()
+DataService.coinsChanged = Signal.new()
 
 local playerStore = ProfileStore.New(STORE_NAME, ProfileSchema.TEMPLATE)
 local profiles: { [Player]: any } = {}
@@ -62,11 +59,11 @@ local function profileKey(player: Player): string
 	return `Player_{player.UserId}`
 end
 
-local function setScrap(player: Player, data: ProfileSchema.ProfileData, balance: number)
-	data.scrap = balance
-	-- The attribute replicates to the client for the scrap counter.
-	player:SetAttribute("Scrap", balance)
-	DataService.scrapChanged:fire(player, balance)
+local function setCoins(player: Player, data: ProfileSchema.ProfileData, balance: number)
+	data.coins = balance
+	-- The attribute replicates to the client for the HUD counter.
+	player:SetAttribute("Coins", balance)
+	DataService.coinsChanged:fire(player, balance)
 end
 
 local function loadProfile(player: Player)
@@ -102,7 +99,7 @@ local function loadProfile(player: Player)
 	end
 
 	profiles[player] = profile
-	player:SetAttribute("Scrap", profile.Data.scrap)
+	player:SetAttribute("Coins", profile.Data.coins)
 	player:SetAttribute("DataLoaded", true)
 	DataService.profileLoaded:fire(player, profile.Data)
 end
@@ -113,8 +110,8 @@ local function releaseProfile(player: Player)
 		return
 	end
 
-	-- Listeners write their last state (lastSeenAt, yard state) here. Signal
-	-- listeners run immediately, so this finishes before the session ends.
+	-- Listeners write their last state here. Signal listeners run
+	-- immediately, so this finishes before the session ends.
 	DataService.profileReleasing:fire(player, profile.Data)
 	profiles[player] = nil
 	profile:EndSession()
@@ -136,20 +133,20 @@ function DataService.forEachLoaded(callback: (Player, ProfileSchema.ProfileData)
 	DataService.profileLoaded:connect(callback)
 end
 
-function DataService.getScrap(player: Player): number
+function DataService.getCoins(player: Player): number
 	local data = DataService.getData(player)
-	return if data then data.scrap else 0
+	return if data then data.coins else 0
 end
 
-function DataService.addScrap(player: Player, amount: number): boolean
+function DataService.addCoins(player: Player, amount: number): boolean
 	local data = DataService.getData(player)
 	if not data then
 		return false
 	end
 
-	local ok, balance = Currency.add(data.scrap, amount)
+	local ok, balance = Currency.add(data.coins, amount)
 	if ok then
-		setScrap(player, data, balance)
+		setCoins(player, data, balance)
 	end
 
 	return ok
@@ -161,9 +158,9 @@ function DataService.trySpend(player: Player, amount: number): boolean
 		return false
 	end
 
-	local ok, balance = Currency.spend(data.scrap, amount)
+	local ok, balance = Currency.spend(data.coins, amount)
 	if ok then
-		setScrap(player, data, balance)
+		setCoins(player, data, balance)
 	end
 
 	return ok
@@ -174,18 +171,6 @@ function DataService.save(player: Player)
 	if profile then
 		profile:Save()
 	end
-end
-
-function DataService.resetData(player: Player)
-	local profile = profiles[player]
-	if not profile then
-		return
-	end
-
-	profile.Data = ProfileSchema.newData()
-	-- Rejoining reloads every system from the fresh save, which is simpler
-	-- and safer than resetting each service's in-memory state by hand.
-	player:Kick(KICK_DATA_RESET)
 end
 
 function DataService.init() end

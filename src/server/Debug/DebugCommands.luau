@@ -2,8 +2,8 @@
 --[[
 	DebugCommands
 
-	Parses chat commands like "/givescrap 500" and decides who may use them.
-	DebugService wires these to chat and to the showcase panel.
+	Parses chat commands like "/givecoins 500" and decides who may use them.
+	DebugService wires these to chat.
 
 	Public API:
 		DebugCommands.PREFIX

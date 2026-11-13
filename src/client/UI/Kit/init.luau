@@ -2,12 +2,11 @@
 --[[
 	Kit
 
-	React components drawn from the ToyKit art (art/ui/ToyKit), and the
-	art's sizes and layout grid. Screens require this one module.
+	React components drawn as plain frames in the Theme colors. Screens
+	require this one module.
 
 	Public API:
-		Kit.Art                       -- sizes, image IDs, layout grid (Art.luau)
-		Kit.Image, Kit.Text, Kit.Button, Kit.Slot, Kit.Bar, Kit.Window
+		Kit.Text, Kit.Button, Kit.Bar, Kit.Window
 		Kit.mount(name, displayOrder?): Root   -- a ScreenGui with a React root
 ]]
 
@@ -22,11 +21,8 @@ export type Root = {
 }
 
 local Kit = {
-	Art = require(script.Art),
-	Image = require(script.KitImage),
 	Text = require(script.KitText),
 	Button = require(script.KitButton),
-	Slot = require(script.Slot),
 	Bar = require(script.Bar),
 	Window = require(script.Window),
 }

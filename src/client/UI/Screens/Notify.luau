@@ -2,9 +2,8 @@
 --[[
 	Notify
 
-	Short messages stacked under the raid strip, each a slim navy tag sized
-	to its text that fades out on its own. The stack glides to a new top
-	when the raid sign hangs under the strip.
+	Short messages stacked near the top of the screen, each a slim tag sized
+	to its text that fades out on its own.
 
 	Props: top (pixels from the top), toasts ({ { id, text, color } }),
 	onGone(id) when a toast has faded
@@ -16,15 +15,12 @@ local TweenService = game:GetService("TweenService")
 local React = require(ReplicatedStorage.Packages.React)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
-local Kit = require(script.Parent.Parent.Kit)
-
 local e = React.createElement
 
 local TOAST_SECONDS = 3
 local FADE_SECONDS = 0.4
 local TOAST_H = 36
 local TEXT_INSET = 16
-local MOVE_TWEEN = TweenInfo.new(0.2, Enum.EasingStyle.Quad)
 
 export type Toast = { id: number, text: string, color: Color3? }
 
@@ -60,11 +56,11 @@ local function ToastView(props: { toast: Toast, onGone: (id: number) -> () })
 		Size = UDim2.fromOffset(0, TOAST_H),
 		LayoutOrder = props.toast.id,
 	}, {
-		Corner = e("UICorner", { CornerRadius = UDim.new(0, 12) }),
+		Corner = e("UICorner", { CornerRadius = Theme.CornerRadius }),
 		Ink = e("UIStroke", {
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			Color = Theme.Colors.Ink,
-			Thickness = Kit.Art.INK,
+			Thickness = Theme.StrokeThickness,
 			Transparency = fade,
 		}),
 		Padding = e("UIPadding", { PaddingLeft = UDim.new(0, TEXT_INSET), PaddingRight = UDim.new(0, TEXT_INSET) }),
@@ -82,22 +78,14 @@ local function ToastView(props: { toast: Toast, onGone: (id: number) -> () })
 end
 
 local function Notify(props: Props)
-	local stackRef = React.useRef(nil :: Frame?)
-	React.useEffect(function()
-		local stack = stackRef.current
-		if stack then
-			TweenService:Create(stack, MOVE_TWEEN, { Position = UDim2.new(0.5, 0, 0, props.top) }):Play()
-		end
-	end, { props.top })
-
 	local toasts = {}
 	for _, toast in props.toasts do
 		toasts[tostring(toast.id)] = e(ToastView, { toast = toast, onGone = props.onGone })
 	end
 	return e("Frame", {
-		ref = stackRef,
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, props.top),
 		Size = UDim2.new(1, 0, 0, 3 * (TOAST_H + 6)),
 	}, {
 		Layout = e("UIListLayout", {

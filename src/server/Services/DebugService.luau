@@ -4,12 +4,10 @@
 
 	Chat commands for testing, usable in Studio or by admins listed in
 	Config/Game.ADMIN_USER_IDS. Services register their own commands, so
-	each command sits next to the system it pokes at; the showcase panel
-	(ShowcaseService) runs the same commands through run().
+	each command sits next to the system it pokes at.
 
 	Built-in commands:
-		/givescrap <amount>
-		/resetdata
+		/givecoins <amount>   -- the example command
 		/help
 
 	Public API:
@@ -48,8 +46,7 @@ function DebugService.register(name: string, usage: string, handler: Handler)
 end
 
 function DebugService.run(player: Player, name: string, args: { string }): string
-	-- SECURITY: every path into a command checks the gate here, including
-	-- the showcase panel's remote.
+	-- SECURITY: every path into a command checks the gate here.
 	if not DebugService.isAllowed(player) then
 		return "Not allowed"
 	end
@@ -78,17 +75,12 @@ local function onChatted(player: Player, message: string)
 end
 
 function DebugService.init()
-	DebugService.register("givescrap", "/givescrap <amount>", function(player, args)
+	DebugService.register("givecoins", "/givecoins <amount>", function(player, args)
 		local amount = tonumber(args[1])
-		if not amount or not DataService.addScrap(player, math.floor(amount)) then
-			return "Usage: /givescrap <positive whole number>"
+		if not amount or not DataService.addCoins(player, math.floor(amount)) then
+			return "Usage: /givecoins <positive whole number>"
 		end
-		return `Gave {math.floor(amount)} scrap`
-	end)
-
-	DebugService.register("resetdata", "/resetdata", function(player)
-		DataService.resetData(player)
-		return "Data reset"
+		return `Gave {math.floor(amount)} coins`
 	end)
 
 	DebugService.register("help", "/help", function()

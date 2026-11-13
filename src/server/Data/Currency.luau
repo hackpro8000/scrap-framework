@@ -2,11 +2,11 @@
 --[[
 	Currency
 
-	The rules for changing a scrap balance. DataService.addScrap and
+	The rules for changing a coin balance. DataService.addCoins and
 	DataService.trySpend are the only callers, and they are the only code
-	that writes a player's scrap.
+	that writes a player's coins.
 
-	Scrap is a whole number. Amounts must be positive whole numbers: zero,
+	A balance is a whole number. Amounts must be positive whole numbers: zero,
 	negatives, fractions, NaN and infinity are all refused. Refusing
 	negatives matters most: "add -500" is how a sloppy API lets a player
 	spend money they don't have, and "spend -500" is how it gives money away.

@@ -2,26 +2,27 @@
 --[[
 	Bar
 
-	A trough with its fill clipped to the fraction shown, never squeezed, so
-	the fill's rounded ends stay round. The fill is painted 14px shorter each
-	way than its trough. `fraction` may be a number or a React binding.
+	A rounded trough with a fill showing a fraction (0 to 1). `fraction`
+	may be a number or a React binding.
 
-	Props: name (BarTrough<name> / BarFill<name>), fraction, position?,
-	anchor?, layoutOrder?, zIndex?, children?
+	Props: fraction, size (pixels), color?, position?, anchor?, layoutOrder?,
+	zIndex?, children?
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local React = require(ReplicatedStorage.Packages.React)
-
-local Art = require(script.Parent.Art)
-local KitImage = require(script.Parent.KitImage)
+local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
 local e = React.createElement
 
+-- The fill sits this many pixels inside the trough on every side.
+local INSET = 4
+
 export type Props = {
-	name: string,
 	fraction: any,
+	size: Vector2,
+	color: Color3?,
 	position: UDim2?,
 	anchor: Vector2?,
 	layoutOrder: number?,
@@ -30,29 +31,35 @@ export type Props = {
 }
 
 local function Bar(props: Props)
-	local size = Art.size("BarTrough" .. props.name)
-	local w, h = size.X, size.Y
-	local function clipSize(fraction: number): UDim2
-		return UDim2.fromOffset(math.round((w - 14) * math.clamp(fraction, 0, 1)), h - 14)
+	local w, h = props.size.X, props.size.Y
+	local function fillSize(fraction: number): UDim2
+		return UDim2.fromOffset(math.round((w - 2 * INSET) * math.clamp(fraction, 0, 1)), h - 2 * INSET)
 	end
 	local fraction = props.fraction
-	local clip = if type(fraction) == "number" then clipSize(fraction) else fraction:map(clipSize)
+	local fill = if type(fraction) == "number" then fillSize(fraction) else fraction:map(fillSize)
 	local z = props.zIndex or 1
-	return e(KitImage, {
-		element = "BarTrough" .. props.name,
-		position = props.position,
-		anchor = props.anchor,
-		layoutOrder = props.layoutOrder,
-		zIndex = z,
+	return e("Frame", {
+		BackgroundColor3 = Theme.Colors.Background,
+		Size = UDim2.fromOffset(w, h),
+		Position = props.position or UDim2.new(),
+		AnchorPoint = props.anchor or Vector2.zero,
+		LayoutOrder = props.layoutOrder or 0,
+		ZIndex = z,
 	}, {
-		Clip = e("Frame", {
-			BackgroundTransparency = 1,
-			ClipsDescendants = true,
-			Position = UDim2.fromOffset(7, 7),
-			Size = clip,
+		Corner = e("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Ink = e("UIStroke", {
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = Theme.Colors.Ink,
+			Thickness = Theme.StrokeThickness,
+		}),
+		Fill = e("Frame", {
+			BackgroundColor3 = props.color or Theme.Colors.PanelLight,
+			BorderSizePixel = 0,
+			Position = UDim2.fromOffset(INSET, INSET),
+			Size = fill,
 			ZIndex = z + 1,
 		}, {
-			Fill = e(KitImage, { element = "BarFill" .. props.name, zIndex = z + 1 }),
+			Corner = e("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
 		}),
 		Content = if props.children then e(React.Fragment, nil, props.children) else nil,
 	})

@@ -17,9 +17,9 @@ describe("Signal", function()
 			table.insert(received, { a, b })
 		end)
 
-		signal:fire("scrap", 5)
+		signal:fire("coins", 5)
 
-		expect(received).toEqual({ { "scrap", 5 }, { "scrap", 5 } })
+		expect(received).toEqual({ { "coins", 5 }, { "coins", 5 } })
 	end)
 
 	it("once runs a listener a single time", function()
@@ -89,9 +89,9 @@ describe("Signal", function()
 		task.spawn(function()
 			result = { signal:wait() }
 		end)
-		signal:fire("storm", 3)
+		signal:fire("tick", 3)
 
-		expect(result).toEqual({ "storm", 3 })
+		expect(result).toEqual({ "tick", 3 })
 	end)
 
 	it("destroy disconnects every listener", function()

@@ -12,11 +12,11 @@ end
 
 describe("DebugCommands", function()
 	it("splits a command into a lowercase name and its arguments", function()
-		expect(pack(DebugCommands.parse("/GiveScrap  500 extra"))).toEqual({ "givescrap", { "500", "extra" } })
+		expect(pack(DebugCommands.parse("/GiveCoins  500 extra"))).toEqual({ "givecoins", { "500", "extra" } })
 	end)
 
 	it("ignores normal chat and an empty prefix", function()
-		expect(DebugCommands.parse("hello /givescrap")).toBe(nil)
+		expect(DebugCommands.parse("hello /givecoins")).toBe(nil)
 		expect(DebugCommands.parse("/")).toBe(nil)
 		expect(DebugCommands.parse(string.rep("/a", 100))).toBe(nil)
 	end)

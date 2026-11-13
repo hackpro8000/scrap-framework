@@ -18,25 +18,9 @@ local Controllers = script.Controllers
 local CONTROLLERS: { Boot.Entry } = {
 	{ name = "NotifyController", module = require(Controllers.NotifyController) },
 	{ name = "HudController", module = require(Controllers.HudController) },
-	{ name = "InventoryController", module = require(Controllers.InventoryController) },
-	{ name = "TradeController", module = require(Controllers.TradeController) },
-	{ name = "PlotController", module = require(Controllers.PlotController) },
-	{ name = "RoundController", module = require(Controllers.RoundController) },
-	{ name = "BeltController", module = require(Controllers.BeltController) },
-	{ name = "BuildController", module = require(Controllers.BuildController) },
-	{ name = "JunkrotController", module = require(Controllers.JunkrotController) },
-	{ name = "ShowcaseController", module = require(Controllers.ShowcaseController) },
-	{ name = "CombatController", module = require(Controllers.CombatController) },
-	{ name = "JuiceController", module = require(Controllers.JuiceController) },
-	{ name = "HotbarController", module = require(Controllers.HotbarController) },
-	{ name = "PlayerPoseController", module = require(Controllers.PlayerPoseController) },
-	{ name = "ScrapFxController", module = require(Controllers.ScrapFxController) },
-	{ name = "AtmosphereController", module = require(Controllers.AtmosphereController) },
 	{ name = "PromptController", module = require(Controllers.PromptController) },
-	{ name = "LeaderboardController", module = require(Controllers.LeaderboardController) },
 	{ name = "SettingsController", module = require(Controllers.SettingsController) },
-	{ name = "ShopController", module = require(Controllers.ShopController) },
-	{ name = "RewardsController", module = require(Controllers.RewardsController) },
+	{ name = "CounterController", module = require(Controllers.CounterController) },
 }
 
 Boot.run("Client", CONTROLLERS)

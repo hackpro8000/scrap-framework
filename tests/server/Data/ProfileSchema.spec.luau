@@ -8,37 +8,26 @@ local ProfileSchema = Source.require("src/server/Data/ProfileSchema")
 
 describe("ProfileSchema.reconcile", function()
 	it("fills a new template field into an old save without touching the rest", function()
-		local oldSave = {
-			version = 1,
-			scrap = 750,
-			inventory = {
-				stacks = { RustyGear = 3 },
-				uniques = { ["guid-1"] = { itemId = "GoldenCog", createdAt = 5 } },
-			},
-		}
+		local oldSave = { version = 1, coins = 750 }
 
 		ProfileSchema.reconcile(oldSave)
 
-		expect(oldSave.scrap).toBe(750)
-		expect(oldSave.inventory.stacks).toEqual({ RustyGear = 3 })
-		expect(oldSave.inventory.uniques["guid-1"].itemId).toBe("GoldenCog")
-		expect(oldSave.yard).toEqual({ objects = {}, nextObjectId = 1, crateScrap = 0 })
-		expect(oldSave.stats.raidsWon).toBe(0)
+		expect(oldSave.coins).toBe(750)
+		expect(oldSave.settings).toEqual(ProfileSchema.TEMPLATE.settings)
 	end)
 
 	it("fills missing fields inside nested tables", function()
-		local save = { yard = { crateScrap = 40 } }
+		local save = { settings = { music = 0.1 } }
 
 		ProfileSchema.reconcile(save)
 
-		expect(save.yard.crateScrap).toBe(40)
-		expect(save.yard.objects).toEqual({})
-		expect(save.yard.nextObjectId).toBe(1)
+		expect(save.settings.music).toBe(0.1)
+		expect(save.settings.sounds).toBe(ProfileSchema.TEMPLATE.settings.sounds)
 	end)
 
 	it("changes nothing when run twice", function()
 		local save = ProfileSchema.newData()
-		save.scrap = 10
+		save.coins = 10
 		ProfileSchema.reconcile(save)
 		local once = table.clone(save)
 
@@ -50,18 +39,18 @@ describe("ProfileSchema.reconcile", function()
 	it("copies defaults, so saves never share a table with the template", function()
 		local first = ProfileSchema.newData()
 		local second = ProfileSchema.newData()
-		first.inventory.stacks.RustyGear = 1
+		first.settings.music = 0
 
-		expect(second.inventory.stacks.RustyGear).toBe(nil)
-		expect(ProfileSchema.TEMPLATE.inventory.stacks.RustyGear).toBe(nil)
+		expect(second.settings.music).toBe(ProfileSchema.TEMPLATE.settings.music)
+		expect(ProfileSchema.TEMPLATE.settings.music ~= 0).toBe(true)
 	end)
 end)
 
 describe("ProfileSchema.migrate", function()
 	local migrations = {
 		[1] = function(data)
-			data.credits = data.scrap
-			data.scrap = nil
+			data.credits = data.coins
+			data.coins = nil
 			return data
 		end,
 		[2] = function(data)
@@ -71,7 +60,7 @@ describe("ProfileSchema.migrate", function()
 	}
 
 	it("runs each step from the save's version to the target", function()
-		local save = ProfileSchema.migrate({ version = 1, scrap = 5 }, migrations, 3)
+		local save = ProfileSchema.migrate({ version = 1, coins = 5 }, migrations, 3)
 
 		expect(save).toEqual({ version = 3, credits = 10 })
 	end)
@@ -83,7 +72,7 @@ describe("ProfileSchema.migrate", function()
 	end)
 
 	it("treats unversioned saves as version 1", function()
-		local save = ProfileSchema.migrate({ scrap = 1 }, migrations, 2)
+		local save = ProfileSchema.migrate({ coins = 1 }, migrations, 2)
 
 		expect(save).toEqual({ version = 2, credits = 1 })
 	end)
@@ -92,22 +81,6 @@ describe("ProfileSchema.migrate", function()
 		expect(function()
 			ProfileSchema.migrate({ version = 1 }, {}, 2)
 		end).toThrow("no migration from version 1")
-	end)
-
-	it("drops old machines for the new yard but keeps what was in the crate", function()
-		local save = ProfileSchema.migrate({
-			version = 1,
-			scrap = 900,
-			yard = { machines = { Pad1 = { level = 2 } }, crateParts = 120 },
-			tutorial = { Welcome = true },
-		})
-		ProfileSchema.reconcile(save)
-
-		expect(save.version).toBe(ProfileSchema.VERSION)
-		expect(save.scrap).toBe(900)
-		expect(save.yard).toEqual({ objects = {}, nextObjectId = 1, crateScrap = 120 })
-		expect(save.tutorial).toBe(nil)
-		expect(save.rank).toBe(0)
 	end)
 
 	it("has a migration for every version below the current one", function()

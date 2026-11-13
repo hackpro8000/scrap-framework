@@ -2,9 +2,10 @@
 --[[
 	PromptController
 
-	Draws every ProximityPrompt (the server sets them to Custom style) as a
-	cream kit card floating over what it acts on (UI/Screens/PromptCard),
-	popping in when shown and shrinking away when hidden.
+	Draws every ProximityPrompt whose Style is Custom as a kit card floating
+	over what it acts on (UI/Screens/PromptCard), popping in when shown and
+	shrinking away when hidden. Prompts left on the Default style keep the
+	Roblox look.
 
 	Roblox still reads the key and gamepad input itself; the card is only
 	what the prompt looks like, plus a tap target.

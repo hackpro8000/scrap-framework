@@ -1,5 +1,6 @@
 [package]
-name = "hackpro8000/scrap-heist"
+# Wally names are scope/name; change both for your game.
+name = "my-studio/my-game"
 version = "0.1.0"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"

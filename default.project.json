@@ -1,5 +1,5 @@
 {
-	"name": "ScrapHeist",
+	"name": "my-game",
 	"tree": {
 		"$className": "DataModel",
 		"ReplicatedStorage": {

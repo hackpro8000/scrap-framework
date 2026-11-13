@@ -2,9 +2,9 @@
 --[[
 	SettingsService
 
-	Saves each player's settings (volumes and effect switches) in their
-	profile, so they follow the player to any server. The client applies
-	them; the server only checks their shape and stores them.
+	Saves each player's settings (music and sound volume) in their profile,
+	so they follow the player to any server. The client applies them; the
+	server only checks their shape and stores them.
 
 	Public API: none (driven by its remotes).
 ]]
@@ -12,6 +12,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage.Shared.Net.Settings)
+local Validate = require(ReplicatedStorage.Shared.Util.Validate)
 
 local DataService = require(script.Parent.DataService)
 local RemoteGuard = require(script.Parent.Parent.Security.RemoteGuard)
@@ -22,7 +23,6 @@ local SAVE_RATE = 4
 local REQUEST_RATE = 1
 
 local VOLUMES = { "music", "sounds" }
-local SWITCHES = { "screenShake", "damageNumbers", "hitPause" }
 
 local SettingsService = {}
 
@@ -48,13 +48,8 @@ function SettingsService.start()
 		end
 		for _, key in VOLUMES do
 			local value = settings[key]
-			if type(value) == "number" and value == value then
+			if Validate.isFiniteNumber(value) then
 				(data.settings :: any)[key] = math.clamp(value, 0, 1)
-			end
-		end
-		for _, key in SWITCHES do
-			if type(settings[key]) == "boolean" then
-				(data.settings :: any)[key] = settings[key]
 			end
 		end
 		return nil
