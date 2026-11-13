@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "engine-check"
           git config user.email "engine-check@users.noreply.github.com"
-          sha="$(cd framework/engine && find src Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
+          sha="$(cd framework/engine && find src crates Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
           shared="$(mktemp -d)"
           cp framework/engine/target/release/modelkit "${shared}/modelkit-linux-x64"
           echo "${sha}" > "${shared}/source-sha"

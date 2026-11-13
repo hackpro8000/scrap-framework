@@ -489,9 +489,17 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "mlua",
+ "modelkit-kernel",
  "png",
  "pollster",
  "wgpu",
+]
+
+[[package]]
+name = "modelkit-kernel"
+version = "0.1.0"
+dependencies = [
+ "png",
 ]
 
 [[package]]

@@ -71,7 +71,7 @@ fi
 needs_engine="${force_engine}"
 if [ -z "${needs_engine}" ]; then
 	# The same hash scripts/build-model.sh keeps; the build-engine branch holds the last one a machine compiled.
-	source_sha="$(cd "${FRAMEWORK}/engine" && find src Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
+	source_sha="$(cd "${FRAMEWORK}/engine" && find src crates Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
 	shared=""
 	git fetch -q --depth=1 origin refs/heads/build-engine 2> /dev/null && shared="$(git show FETCH_HEAD:source-sha 2> /dev/null || true)"
 	[ "${shared}" = "${source_sha}" ] || needs_engine=1

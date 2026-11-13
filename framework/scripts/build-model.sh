@@ -21,7 +21,7 @@ engine="${FRAMEWORK}/engine"
 modelkit="${engine}/bin/modelkit-linux-x64"
 stamp="${modelkit}.source-sha"
 # Hash the engine's sources and manifests by content, so only a real source change counts.
-source_sha="$(cd "${engine}" && find src Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
+source_sha="$(cd "${engine}" && find src crates Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
 if [ "$(cat "${stamp}" 2>/dev/null || true)" != "${source_sha}" ]; then
 	# The first build machine to compile an engine leaves it on the
 	# build-engine branch with its source hash (MODELKIT_SHARE_ENGINE=1), so

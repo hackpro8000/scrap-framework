@@ -35,7 +35,7 @@ pub fn to_linear(c: f32) -> f64 {
 	if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
-pub(crate) fn to_srgb(c: f64) -> f32 {
+pub fn to_srgb(c: f64) -> f32 {
 	let c = c.clamp(0.0, 1.0);
 	(if c <= 0.003_130_8 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }) as f32
 }
@@ -50,7 +50,7 @@ pub fn parallel<I: Sync, T: Send, F: Fn(&I) -> T + Sync>(texels: &[I], work: F) 
 }
 
 // Like parallel, with scratch state each thread keeps from texel to texel.
-pub(crate) fn parallel_with<I: Sync, T: Send, S, N: Fn() -> S + Sync, F: Fn(&mut S, &I) -> T + Sync>(texels: &[I], new: N, work: F) -> Vec<T> {
+pub fn parallel_with<I: Sync, T: Send, S, N: Fn() -> S + Sync, F: Fn(&mut S, &I) -> T + Sync>(texels: &[I], new: N, work: F) -> Vec<T> {
 	let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
 	let batches: Vec<&[I]> = texels.chunks(BATCH).collect();
 	let next = AtomicUsize::new(0);
@@ -85,7 +85,7 @@ pub fn within_reach(own: &Mesh, other: &Mesh, reach: f64) -> bool {
 }
 
 // Corners of the box round a mesh's positions.
-pub(crate) fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
+pub fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
 	let mut low = [f64::MAX; 3];
 	let mut high = [f64::MIN; 3];
 	for p in &mesh.positions {

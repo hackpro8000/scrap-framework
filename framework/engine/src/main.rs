@@ -53,12 +53,7 @@ mod detail;
 mod glb;
 mod hand;
 mod gpu;
-mod image;
-mod kernel;
 mod marks;
-mod mesh;
-mod part;
-mod progress;
 mod work;
 mod render;
 mod scene;
@@ -71,6 +66,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
+
+// The kernel crate's modules, named at the root so `crate::mesh::...` and the
+// like keep resolving in every module of this crate.
+use modelkit_kernel::{image, kernel, mesh, part, progress};
 
 use image::Image;
 use mesh::{dot, scale, sub, Face, Mesh};

@@ -3,9 +3,21 @@ name = "modelkit"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-mlua = { version = "0.12", features = ["luau", "luau-jit"] }
+# The engine is a small kernel crate plus plugin crates under crates/, with
+# this package (the modelkit binary) at the root. proof-base is an old engine
+# copied in for a bake proof (scripts/bake-proof.sh); it builds on its own.
+[workspace]
+members = [".", "crates/*"]
+exclude = ["proof-base"]
+resolver = "2"
+
+[workspace.dependencies]
 png = "0.17"
+
+[dependencies]
+modelkit-kernel = { path = "crates/kernel" }
+mlua = { version = "0.12", features = ["luau", "luau-jit"] }
+png = { workspace = true }
 # The shading bake runs its per-texel passes as compute shaders when a GPU is
 # present (see src/gpu.rs). No GL: a GL-only machine bakes on the CPU instead.
 wgpu = { version = "=29.0.4", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "dx12", "wgsl"] }
