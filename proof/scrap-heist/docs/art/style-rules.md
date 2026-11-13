@@ -7,11 +7,24 @@ The look of Scrap Heist, taken out of the shared framework docs so they stay neu
 - A cartoony style: chunky, readable shapes, judged against our other models. "Chunkiness" and "style drift" (`framework/docs/art/feedback-words.md`) mean against this style.
 - Flat material maps are deliberate: zero metal and full roughness on every part. Never flag them or propose real maps.
 - Metal keeps hand-painted wear: brush strokes, wear and tapered highlights. Only printed markings (tape, labels) stay crisp.
-- Items carry the rarity accent color from `art/src/rarity.luau`. The legendary glow is painted only, with no light objects.
+- Items carry the rarity accent color from `art/style/palette.luau`. The legendary glow is painted only, with no light objects.
 
-## Shading amounts
+## The kit and plugins
 
-Set in `art/src/common.luau` and used by every item, bot and layout:
+The look is the style kit in `art/style/`, joined with the framework's helpers (`framework/art/lib/`) in the order `art/style/assembly.txt` lists:
+
+| File | Holds |
+|---|---|
+| `palette.luau` | rarity accents and material colours (the `[palette]` that opens items and layouts) |
+| `05-amounts.luau` | the shading amounts below, `SMOOTH_ANGLE` (30) and `TEXTURE` (256) |
+| `30-weathering-colours.luau` | rust, flake and bare-metal colours |
+| `35-rusting.luau` | `rusting(rust, paint)` for parts with their own paint fn, and `RUBBER` |
+| `40-binding-colours.luau` | dust, tape, rubber and rope colours |
+| `41-warp.luau` | `WARP` |
+| `51-look.luau` | `setLook()`: a part's coat colours, wear and rubber |
+| `55-hand-motion.luau` | the brush motion each hand-painted material uses on edges |
+| `59-part-look-keys.luau` | notes on the extra `part()` keys this look reads (`edge`, `texture`, `flat`, ...) |
+| `80-finish.luau` | `finishParts()`: shades every part with the others as occluders through `mesh:paintShading`, then adds it |
 
 | Setting | Value | What it does |
 |---|---|---|
@@ -19,8 +32,10 @@ Set in `art/src/common.luau` and used by every item, bot and layout:
 | `CONTACT_SHADOW` | 0.425 | strength of the contact shadow where parts meet |
 | `GRADIENT` | 0.5 | top-lit falloff toward the base |
 | `EDGE_BLEND` | 0.7 | how far highlights feather and take the part's colour |
-| `WARP` | 0.0385 | how far shapes are warped off true |
+| `WARP` | 0.0385 | how far shapes are warped off true (`41-warp.luau`) |
 | `WEAR` | 0.57 | scales every part's rust, grime and scratches |
+
+The painting itself is in two Rust plugins, listed in this order in `engine/src/main.rs`: `art/plugins/sh-paint` (brush strokes, stamps, hand marks, coat and wear; no hooks of its own) and `art/plugins/sh-shading` (`mesh:paintShading`: edge highlights, contact shadows, the soft highlight and the combined layers, plus the `--normals` and `--roughness` flags).
 
 Shading layers: warp, weathering, edge highlights, contact shadows, gradient. A part with `rust` 0 gets no warp or weathering; use it for glow cores. A finish fix for one model sets the part's numbers before `handFinish`; a number moves into `art/src/shared/HandFinish.luau` (`PRESETS`) only under the rule in the pipeline's "Fixing finish without side effects".
 

@@ -5,8 +5,9 @@ Supplementary rules for agents working on this game.
 `ROADMAP.md` is the authority. It decides tooling, dependencies, folder layout, lifecycle (`init()`/`start()`), naming, comments, server authority and commit format. This file only adds style rules the roadmap doesn't cover. If anything here conflicts with the roadmap, the roadmap wins.
 
 ## Framework
-- `framework/` is a pinned copy shared between games. Never edit it here. Changes go to the framework repository and come back with `framework/scripts/framework-update.sh` (planned).
-- Game names and numbers live in `game.toml`. The game's look lives in `art/style/` and `art/plugins/` (planned).
+- `framework/` is a pinned copy shared between games. Never edit it here. Changes go to the framework repository and come back with `framework/scripts/framework-update.sh`. `framework/scripts/framework-check.sh` says whether it still matches its release.
+- Game names and numbers live in `game.toml`. The game's look lives in its style kit, `art/style/` (joined with the framework's helpers in the order `art/style/assembly.txt` gives; `framework/art/lib/README.md` lists what the kit defines), and in Rust plugins under `art/plugins/` (`framework/docs/plugins.md`).
+- The game's engine is `engine/` with the root `Cargo.toml`. It compiles only on the build machines, never on this computer.
 
 ## Code style
 - Indent with tabs.

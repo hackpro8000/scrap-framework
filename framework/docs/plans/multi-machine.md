@@ -2,7 +2,7 @@
 
 Status file for the team's first task (started 2026-11-11). Any session can pick this up: milestones, what is done, what is blocked. The team's rules are in `docs/team/`.
 
-Built and measured on Scrap Heist, the game the framework came from; the build sizes below (4,700 parts, 20 shards) are its map. `<game>` stands for the `name` in `game.toml`.
+Built and measured on the game the framework came from; the build sizes below (4,700 parts, 20 shards) are its map. `<game>` stands for the `name` in `game.toml`.
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Agent team: what was measured
 
-Status: measurements from 2026-11-11, taken on Scrap Heist while planning `agent-team.md`. Every number is a single sample unless it says otherwise, so a gap of a second or two is noise. Costs are estimates at API list rates (table dated 2026-10-06); on a subscription the same ratios apply to usage limits.
+Status: measurements from 2026-11-11, taken on the game the framework came from while planning `agent-team.md`. Every number is a single sample unless it says otherwise, so a gap of a second or two is noise. Costs are estimates at API list rates (table dated 2026-10-06); on a subscription the same ratios apply to usage limits.
 
 Times and tokens for subagents come from each agent's own log, read with `framework/scripts/agent-stats.sh`, so the main session's reaction time is not in them.
 

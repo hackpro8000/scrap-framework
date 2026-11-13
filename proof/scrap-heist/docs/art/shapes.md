@@ -2,7 +2,9 @@
 
 The game's own copy of the shape list, with the models that use each one. The general guidance is in `framework/docs/art/shapes.md`. Paths are relative to the game root (`proof/scrap-heist`). Counts are how many sources used each one when this was written.
 
-## Shared helpers (`art/src/common.luau`, in every item and bot)
+## Shared helpers (in every item and bot)
+
+The shapes come from `framework/art/lib/` (`20-shapes.luau`, `21-plates-tubes.luau`, `22-machine-shapes.luau`), `part()` and `chunkedPart()` from `60-parts.luau` and `70-chunks.luau` there, and `finishParts()` from this game's `art/style/80-finish.luau`.
 
 | Helper | Makes | Examples |
 | --- | --- | --- |

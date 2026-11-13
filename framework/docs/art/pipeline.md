@@ -1,8 +1,11 @@
 # Model pipeline
 
-Models are Luau scripts run by `modelkit`, a small Rust engine in
-`framework/engine` that builds meshes, paints and bakes textures, and writes a
-`.glb` with a preview render. No Blender; a model builds in seconds.
+Models are Luau scripts run by `modelkit`, a small Rust engine that builds
+meshes, paints and bakes textures, and writes a `.glb` with a preview render.
+No Blender; a model builds in seconds. Each game builds its own `modelkit`
+from the framework's base crates (`framework/engine/crates/*`) and its own
+plugins (`art/plugins/<name>/`, listed in `engine/src/main.rs`; see
+`framework/docs/plugins.md`).
 
 Paths below are relative to the game's root (the folder holding `game.toml`)
 unless they start with `framework/`. Game numbers come from `game.toml`:
@@ -11,12 +14,13 @@ unless they start with `framework/`. Game numbers come from `game.toml`:
 `camera_height`, and `default_layout`. The game's look lives in its own
 style kit and style rules (`art/style/`), never in this file.
 
-The shading bake's per-texel passes (contact creases, coat, wear) run as
-compute shaders on the GPU when there is one (`framework/engine/src/gpu.rs`,
-`crease.wgsl`, `canvas.wgsl`), and on the CPU threads otherwise, such as in
-cloud sessions. The build prints which it used. `MODELKIT_GPU=off` forces the
-CPU bake. GPU textures match the CPU ones up to f32 rounding (well under 1% of
-texels differ), so cached layers from either can be mixed.
+A style plugin's per-texel passes can run as compute shaders on the GPU when
+there is one, through the base GPU crate (`framework/engine/crates/gpu`), and
+on the CPU threads otherwise, such as in cloud sessions. The proof game's
+shading plugin does this for its contact creases, coat and wear. The build
+prints which it used. `MODELKIT_GPU=off` forces the CPU bake. GPU textures
+match the CPU ones up to f32 rounding (well under 1% of texels differ), so
+cached layers from either can be mixed.
 
 ## Layout
 
@@ -28,8 +32,10 @@ art/models/<Name>/
 ├── <Part>_Metalness.png, <Part>_Roughness.png   # material maps
 ├── <Part>_Emissive.png  # glowing parts only: EmissiveMaskContent (set EmissiveStrength to match)
 └── preview.png       # generated 3/4 render for review
-framework/engine/                   # the engine (Rust, mlua + Luau)
-framework/engine/bin/               # prebuilt engine, so sessions need no Rust (fetched, not committed)
+Cargo.toml, engine/                 # the game's engine package: host plus plugins
+art/plugins/<name>/                 # the game's Rust plugins
+engine/bin/modelkit-linux-x64       # prebuilt engine, so sessions need no Rust (fetched, not committed)
+framework/engine/crates/            # the base crates (Rust, mlua + Luau)
 framework/scripts/build-model.sh    # runs model.luau with the prebuilt engine
 ```
 
@@ -38,7 +44,7 @@ framework/scripts/build-model.sh    # runs model.luau with the prebuilt engine
 ```sh
 framework/scripts/build-model.sh <Name>     # one model
 framework/scripts/build-model.sh            # every model
-framework/engine/bin/modelkit-linux-x64 art/models/<Name> --turntable 60   # MP4 frames
+engine/bin/modelkit-linux-x64 art/models/<Name> --turntable 60   # MP4 frames
 ```
 
 Layouts cache each placed model in `art/models/<Name>/.cache` (ignored by
@@ -84,29 +90,46 @@ Rules that keep rebuilds fast:
   in seconds (on a large map, about 15 s against 100 s cold). If it doesn't,
   find what isn't cached before going on.
 
-**Normal maps.** `modelkit ... --normals [STRENGTH]` bakes a tangent-space
-normal map per part (`<Part>_Normal.png`, and the GLB material's normal
-slot, which the bundle exporter carries through). It derives from the same
-edge field the edge highlights are painted from, stored in the shade layer
-by the one geometry walk per texel; the coat and wear layers read that
-stored field too (at each stroke's UV), so nothing walks the geometry
-twice. That is the rule for every map: a field computed for one pass
-(edge, crease, gradient) is stored and reused by the others, never
-recalculated. `--no-cache` (or `MODELKIT_NO_CACHE=1`) builds cold and
+**Normal maps.** The proof game's shading plugin adds the flag
+`--normals [STRENGTH]`, which bakes a tangent-space normal map per part
+(`<Part>_Normal.png`, and the GLB material's normal slot, which the bundle
+exporter carries through). It derives from the same edge field the edge
+highlights are painted from, stored in the shade layer by the one geometry
+walk per texel; the coat and wear layers read that stored field too (at each
+stroke's UV), so nothing walks the geometry twice. That is the rule for
+every map a plugin bakes: a field computed for one pass (edge, crease,
+gradient) is stored and reused by the others, never recalculated.
+`--no-cache` (or `MODELKIT_NO_CACHE=1`) builds cold and
 writes nothing, for timing. A preview name ending in `!` in a coordinator
 task (`--preview 'Name!'`) keeps that model's build on one machine, for a
 timing that other machines don't share.
 
 ## Changing the engine
 
-The engine is part of `framework/`, so it is changed in the framework
-repository, never inside a game. The cloud setup doesn't install Rust. To
-change `framework/engine/src`, install it first
-(`curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal` and
-`apt-get install build-essential`). With Rust present,
-`framework/scripts/build-model.sh` rebuilds the engine and refreshes
-`framework/engine/bin/modelkit-linux-x64`. Compiles run on the build
-machines, which share the binary on the `build-engine` branch.
+The engine has two parts. The base crates (`framework/engine/crates/*`) are
+part of `framework/`, so they are changed in the framework repository, never
+inside a game. A game's own engine code is its plugins in `art/plugins/`
+and the plugin list in `engine/src/main.rs` (`framework/docs/plugins.md`).
+
+Compiles run on the build machines, never on your own computer.
+`framework/scripts/build-model.sh` fingerprints the base crates, the game's
+`Cargo.toml`, `Cargo.lock`, `engine/` and `art/plugins/`; when that changes
+on a machine with Rust, it compiles the game's engine
+(`cargo build --release -p engine`) and refreshes
+`engine/bin/modelkit-linux-x64`. The first machine to compile a source
+shares the binary on the `build-engine` branch and the others take it.
+`framework/scripts/engine-check.sh` compiles the working tree on a GitHub
+machine and prints the compiler's errors. The cloud setup doesn't install
+Rust; install it there with
+`curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal` and
+`apt-get install build-essential`.
+
+In the framework repository, an engine or helper change is proven before it
+is released: `framework/scripts/proof.sh` (run by
+`.github/workflows/proof.yml`) builds the proof game's models with the
+changed engine and compares every file they write with a recorded baseline,
+byte for byte, and `.github/workflows/new-game.yml` builds a new game's
+example model.
 
 ## Script API
 
@@ -119,7 +142,10 @@ Z-up, 1 unit = 1 stud. Any small item model is a short reference.
 - `Image.new(w, h, r?, g?, b?)`, `image:set(x, y, r, g, b)` (y = 0 is the
   bottom row).
 - `mesh:paint(image, function(x, y, z, nx, ny, nz) return r, g, b end)`.
-- `mesh:paintShading(image, {highlight, shadow, bands, sharp, blend, occluders, gradient})`. `blend` 0-1 (default 0) feathers edge highlights and tints them from cream toward the part's own color. `gradient` 0-1 darkens toward the base for a top-lit falloff.
+- Methods the game's plugins add, such as the proof game's
+  `mesh:paintShading(image, options)` (edge highlights, contact shadows,
+  gradient, wear). Which exist depends on the plugins in
+  `engine/src/main.rs`; the kit's `finishParts()` usually calls them.
 - `model.part(name, mesh, image, {group, preview})`. Parts sharing a group
   are one variant (a fill level, an upgrade tier); `preview` picks what the
   preview shows. `bone` names the bone the part follows.
@@ -280,21 +306,25 @@ Code, tooling and models all live on the main branch; there is no separate model
 ### Working with the user
 - Sketch a new model first and get approval before modeling it.
 - One change at a time, each followed by a checkpoint and a screenshot, so the user can steer early.
-- Keep geometry efficient. Get detail from painted shading (`mesh:paintShading`) rather than extra polygons.
+- Keep geometry efficient. Get detail from paint (`mesh:paint`, or the game's shading plugin) rather than extra polygons.
 - Send videos as MP4, never GIF. Tool installs belong in `framework/scripts/cloud-setup.sh` (a framework change).
 - If something can't be seen in a screenshot, say so instead of waiting for the user to notice.
 
 ### Technique
 - Look at the full render before cropping it.
-- Give each part its own image; `paintShading` writes into the image it is given.
-- Pass nearby meshes as `occluders` to `paintShading` so they cast contact shadows. Use this to ground parts on a surface.
+- Give each part its own image; painting methods write into the image they are given.
+- Where the game's shading plugin draws contact shadows (the proof game's `paintShading` takes `occluders`), pass nearby meshes so they cast them. Use this to ground parts on a surface.
 - Check that every variant reads from the game camera. A low fill level can hide behind a container wall.
-- For a see-through part (a propeller blur disc, glass), return a fourth value, the opacity, from the `mesh:paint` colour fn. The image gains an alpha channel, the PNG is written as RGBA, the glb material uses `alphaMode` BLEND, and previews blend it over solid parts. In Roblox, give that part a small Transparency (0.02): the importer hands it a plain TextureID, and Roblox only blends a MeshPart texture's alpha once the part is a little transparent. Paint it flat, without `paintShading`.
+- For a see-through part (a propeller blur disc, glass), return a fourth value, the opacity, from the `mesh:paint` colour fn. The image gains an alpha channel, the PNG is written as RGBA, the glb material uses `alphaMode` BLEND, and previews blend it over solid parts. In Roblox, give that part a small Transparency (0.02): the importer hands it a plain TextureID, and Roblox only blends a MeshPart texture's alpha once the part is a little transparent. Paint it flat, with no shading plugin over it.
 
 ## Session workflow
-Sources live in `art/src`, and `art/models/<Name>/model.luau` is generated from them; never edit it by hand.
-- Bots: `art/src/bots/<Name>/{head,body}.luau`, assembled as head + `common.luau` + body.
-- Items: `art/src/items/<Name>.luau`, assembled as `rarity.luau` + `common.luau` + item.
+Sources live in `art/src`, and `art/models/<Name>/model.luau` is generated from them by `framework/scripts/assemble-model.sh <Name>`; never edit it by hand.
+
+Every model starts with the same code: the framework's helpers (`framework/art/lib/*.luau`) and the game's style kit (`art/style/*.luau`), joined in the order the game's `art/style/assembly.txt` lists. Its `[palette]` files open items and layouts; its `[helpers]` files go into every model. The kit defines the names and functions the helpers read (`WARP`, `SMOOTH_ANGLE`, `TEXTURE`, `setLook()`, `finishParts()`); `framework/art/lib/README.md` is that contract.
+- Items: `art/src/items/<Name>.luau`, assembled as palette + helpers + item.
+- Bots: `art/src/bots/<Name>/{head,body}.luau`, assembled as head + helpers + body.
+- Layouts: `art/src/layouts/<Name>.luau`, assembled as the placement prelude + helpers + each model on its `-- uses:` line + the layout.
+- `-- include: <Name>` pulls a file from the game's `art/src/shared/`, or else from `framework/art/shared/`.
 
 A new item or bot goes through the first build below. After that, the loop for each change is:
 1. Edit `art/src`, then `framework/scripts/assemble-model.sh <Name>`.

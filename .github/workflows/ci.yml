@@ -1,0 +1,89 @@
+name: ci
+
+# Quick checks on every push to build and main, in parallel: the game's Luau
+# tests, the hive's queue tests, the pinned-copy commands, script syntax, and
+# that framework/ names no game. Nothing here compiles the engine (proof.yml,
+# starter.yml and new-game.yml do).
+
+on:
+  push:
+    branches: [build, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # Installs the tools pinned in rokit.toml, lune among them.
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+      - name: Luau tests
+        run: lune run tests/run
+
+  hive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The hub's only third-party module, at the version the build machines use.
+      - name: Modules
+        run: python3 -m pip install --quiet websockets==10.4
+      - name: Hub queue tests
+        run: GAME_ROOT=proof/scrap-heist python3 framework/hive/hub/test_queue.py
+
+  framework-copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep
+      - name: Pinned-copy commands
+        run: framework/scripts/test-framework-copy.sh
+
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            bash -n "${file}" || { echo "FAIL ${file}"; status=1; }
+          done < <(find framework/scripts -name '*.sh' -print0)
+          exit "${status}"
+      - name: Python syntax
+        run: find framework -name '*.py' -not -path '*/__pycache__/*' -print0 | xargs -0 python3 -m py_compile
+
+  names:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep
+      # framework/ is shared between games, so it may name none. Justified
+      # leftovers are listed in framework/.names-allowed.
+      - name: No game names in framework/
+        run: |
+          hits="$(rg -n -i 'scrap heist|scrap-heist|scrapheist|junkrot|ServerMap' framework/ || true)"
+          patterns="$(rg '^\^framework/' framework/.names-allowed || true)"
+          left="${hits}"
+          if [ -n "${hits}" ] && [ -n "${patterns}" ]; then
+            left="$(printf '%s\n' "${hits}" | rg -v -f <(printf '%s\n' "${patterns}") || true)"
+          fi
+          if [ -n "${left}" ]; then
+            echo "These lines under framework/ name a game:"
+            printf '%s\n' "${left}"
+            exit 1
+          fi

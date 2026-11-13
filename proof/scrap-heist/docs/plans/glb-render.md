@@ -4,7 +4,7 @@ State file for this task (shape: long, two parallel lanes). Any session can
 pick it up from here. Goal and design: build each object once to a `.glb`,
 then render every review view from the saved files, never re-baking
 (`framework/docs/art/review-views.md`). The renderer is our own
-`framework/engine/src/render.rs`.
+`framework/engine/crates/render/src/render.rs` (paths updated to the crate layout; the task predates it).
 
 Hard rule: nothing is compiled, built or rendered on the user's computer, and
 no build cache is kept there. Code is edited locally; the Lead pushes a
@@ -13,8 +13,8 @@ never push or commit.
 
 ## Lanes
 
-**Lane A, GLB in** (`framework/engine/src/glb.rs`, `framework/engine/src/main.rs`,
-new `framework/engine/src/scene.rs` if wanted):
+**Lane A, GLB in** (`framework/engine/crates/app/src/glb.rs`, `framework/engine/crates/app/src/lib.rs`,
+`framework/engine/crates/app/src/scene.rs`):
 1. Read a `.glb` that `glb::write` made back into `Part`s: meshes, texture
    coordinates, normals, textures, emissive, see-through, bones posed at rest.
 2. Render-only mode: `modelkit --render <a.glb> [<b.glb> ...] --out <dir>`
@@ -28,7 +28,7 @@ new `framework/engine/src/scene.rs` if wanted):
    render each of the build's views both ways and log
    `GLB_CHECK <view> max=<0-255> mean=<x> direct=<s> glb=<s>`.
 
-**Lane B, faster drawing** (`framework/engine/src/render.rs` only):
+**Lane B, faster drawing** (`framework/engine/crates/render/src/render.rs` only):
 1. Screen tiles drawn on every core (`std::thread::scope`, no new crate).
 2. Frustum culling: whole parts outside the view are skipped before their
    triangles are walked (bounding spheres; `in_view` exists for eyes).

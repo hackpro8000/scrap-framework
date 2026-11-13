@@ -50,7 +50,8 @@ Operations (`EditOps.luau`, header lists them all): `extrude`, `inset`,
 - Repeats (rivets, slats, teeth): one helper call in a loop, or `array`.
 - A rounded or organic body: Edit Mesh `sphere`/`capsule`/`spin`, then
   `smoothSubdivide` and `push`.
-- Small detail (seams, scratches, rivet rows on a flat panel): paint it with
-  `paintShading` rather than modelling it.
+- Small detail (seams, scratches, rivet rows on a flat panel): paint it
+  (`mesh:paint`, or a painting method the game's style plugin adds) rather
+  than modelling it.
 - No helper cuts one shape out of another yet. Make holes with `inset` and
   `extrude` inward, or with `ring`/`tube` walls.

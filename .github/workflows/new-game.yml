@@ -1,0 +1,37 @@
+name: new-game
+
+# Proves a brand-new game made from this template works
+# (framework/scripts/test-new-game.sh --build): the committed tree is copied
+# to a temporary folder, init-game.sh names it, and its tests, framework check
+# and example model build there with the new game's own engine. No cargo
+# cache: the copy lives in a fresh temporary folder, so every run compiles
+# the engine from scratch.
+
+on:
+  push:
+    branches: [build]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch to test
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  new-game:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # Installs the tools pinned in rokit.toml, lune among them.
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+      - name: Tools
+        run: command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep
+      - name: New game
+        run: framework/scripts/test-new-game.sh --build
