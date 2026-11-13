@@ -131,12 +131,16 @@ Reasoned from reading the code; nothing was compiled. Some function bodies were 
 
 2026-11-13
 
-- Proof loop: `gh workflow run proof.yml --ref build -f ref=build` compiles the engine on a GitHub machine and compares 308 output files of 9 Scrap Heist models with `proof/scrap-heist/baseline.txt`. Two recording runs were identical. About 90 s per run once the compile is cached.
-- Engine slices 1 and 2 (helpers to `kernel.rs`, part types to `part.rs`): PROOF OK. Slice 3 (cache and GPU no longer reach into bake and brush): in progress.
-- Done and committed on `build`: import from Scrap Heist `fa123338`; `framework/` layout; `game.toml` and its readers; pipeline scripts relocated (PROOF OK); game code skeleton (140 tests pass); agent rules and docs.
-- In progress: hive relocation and naming (`framework/hive`, hive scripts, the two build workflows).
-- Not started: engine slices 4-15; splitting the shared model helpers from Scrap Heist's style in `proof/scrap-heist/art/src` (the root `tests/art` specs were removed and return with the helpers); the hive split into a model-free hive and the pipeline's hive plugin; `framework-update.sh`, `framework-check.sh`, `init-game.sh`; the plain starter kit and example model; making `main` as one fresh commit.
+- Proof loop: `gh workflow run proof.yml --ref build -f ref=build` compiles the engine on a GitHub machine and compares 308 output files of 9 Scrap Heist models with `proof/scrap-heist/baseline.txt`. About 90 s when the compile is cached, 3.5 min after a crate change.
+- Engine slices 1-5: PROOF OK. The engine is a Cargo workspace: `modelkit-kernel`, `modelkit-gpu`, `modelkit-anim`, `modelkit-render` crates plus the binary. glTF (`glb.rs`, `scene.rs`) stays in the binary until the bake is split, because it reads the bake's roughness setting.
+- Slices 6-7 (cache, texels, Scrap Heist paint and shading crates): in progress. They sit under `framework/engine/crates/` for now; the style crates move to the proof game when the binary becomes game-owned.
+- Shared model helpers split from Scrap Heist's style: PROOF OK, and all 209 assembled model scripts byte-identical. Order is in the game's `art/style/assembly.txt`. Framework helpers still read style names directly (`WARP`, `WEAR`, `EDGE_HIGHLIGHT` and others) and `setLook` holds a default rust amount: needs a real kit interface later.
+- Done and committed on `build`: import from Scrap Heist `fa123338`; `framework/` layout; `game.toml` and readers; pipeline scripts; hive relocation and naming (28 hub tests pass); game code skeleton and model-helper specs (176 tests pass); agent rules and docs; pinned-copy commands (`framework-release.sh`, `framework-check.sh`, `framework-update.sh`, `init-game.sh`; 18 test cases pass).
+- In progress: the plain starter kit and example model at the repository root, with `starter.yml` to build it on GitHub.
+- Not started: engine slices 8-15 (registry and hooks, the two rewrites, plugin identity in cache keys); the game-owned engine binary that lists its plugins; the hive split into a model-free hive and the pipeline's hive plugin; running the hive from this repository; the first framework release (0.1.0); making `main` as one fresh commit.
+- Known faults carried over from Scrap Heist, not yet fixed here: `cloud-task.sh` passes arguments to `cloud-shard.sh` in the wrong order; `standby-previews.sh` copies normal maps from an empty path; `YardLayout` uses a `StorageCrate` model that has no source.
 - Deferred decisions: where `framework/studio/PlaceModels.luau` and the icon list in `item-icons.py` belong (both are mostly Scrap Heist logic).
+- Working rule: commit with an explicit file list (`git commit -m … -- <paths>`), because a plain commit also takes other workers' staged moves.
 
 ## OPEN
 
