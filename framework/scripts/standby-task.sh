@@ -36,10 +36,14 @@
 
 set -uo pipefail
 
+source "$(dirname "$0")/lib/game.sh"
 layout="${1:?layout required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
-out="${4:?results folder required}"
+# The results folder is named from the checkout; the work runs in the game's folder.
+mkdir -p "${4:?results folder required}"
+out="$(cd "$4" && pwd)"
+cd "${GAME_ROOT}"
 task="${out}/task.txt"
 UPLOADER=1
 model="art/models/${layout}"
@@ -107,26 +111,34 @@ EOF
 # machine of a task must cut the layout the same way, so the number is fixed
 # here, in the task's commit, and never worked out per machine. Lane 1 is this
 # checkout; each further lane is a worktree of the same commit inside the .git
-# folder, with its own model folder and cache.
+# folder, with its own model folder and cache. A lane's game and framework sit
+# in its worktree where they sit in the checkout (the game may be a subfolder).
 LANES=3
 # The buffers that keep a machine alive while its lanes use the rest. Memory:
 # the lanes together grow by up to about 150 MB a second and are looked at
 # every 2 seconds. Disk: a full one leaves the machine's shell dead.
 MEMORY_BUFFER_MB=1024
 DISK_BUFFER_MB=2048
-lanes_dir="$(git rev-parse --absolute-git-dir)/scrap-lanes"
+lanes_dir="$(git rev-parse --absolute-git-dir)/$(game_setting name)-lanes"
+checkout="$(git rev-parse --show-toplevel)"
+game_in_checkout="${GAME_ROOT#"${checkout}"}"
+framework_in_checkout="${FRAMEWORK#"${checkout}"}"
 declare -A lane_pid=()
 running=() held=() failed=()
 
-lane_root() {
-	if [ "$1" -eq 1 ]; then pwd; else echo "${lanes_dir}/$1"; fi
+lane_game() {
+	if [ "$1" -eq 1 ]; then echo "${GAME_ROOT}"; else echo "${lanes_dir}/$1${game_in_checkout}"; fi
+}
+
+lane_framework() {
+	if [ "$1" -eq 1 ]; then echo "${FRAMEWORK}"; else echo "${lanes_dir}/$1${framework_in_checkout}"; fi
 }
 
 # Brings a further lane's worktree to this commit, with the engine and the
 # assembled layout this checkout already has.
 prepare_lane() {
 	local at commit
-	at="$(lane_root "$1")"
+	at="${lanes_dir}/$1"
 	commit="$(git rev-parse HEAD)"
 	if [ -e "${at}/.git" ]; then
 		git -C "${at}" checkout -q -f --detach "${commit}" || return 1
@@ -135,8 +147,8 @@ prepare_lane() {
 		mkdir -p "${lanes_dir}"
 		git worktree add -q -f --detach "${at}" "${commit}" || return 1
 	fi
-	cp -p tools/modelkit/bin/modelkit-linux-x64 tools/modelkit/bin/modelkit-linux-x64.source-sha "${at}/tools/modelkit/bin/" &&
-		cp "${model}/model.luau" "${at}/${model}/model.luau"
+	cp -p "${FRAMEWORK}/engine/bin/modelkit-linux-x64" "${FRAMEWORK}/engine/bin/modelkit-linux-x64.source-sha" "$(lane_framework "$1")/engine/bin/" &&
+		cp "${model}/model.luau" "$(lane_game "$1")/${model}/model.luau"
 }
 
 prepare_lanes() {
@@ -149,8 +161,8 @@ prepare_lanes() {
 # Starts a lane's build in its own process group, so all of it can be stopped.
 start_lane() {
 	local lane="$1"
-	setsid bash -c '"$1/scripts/build-model.sh" "$2" -- --shard "$3" && "$1/scripts/export-objects.py" "$2"' lane \
-		"$(lane_root "${lane}")" "${layout}" "$(((index - 1) * LANES + lane))/$((count * LANES))" >> "${out}/lane-${lane}.log" 2>&1 &
+	GAME_ROOT="$(lane_game "${lane}")" setsid bash -c '"$1/scripts/build-model.sh" "$2" -- --shard "$3" && "$1/scripts/export-objects.py" "$2"' lane \
+		"$(lane_framework "${lane}")" "${layout}" "$(((index - 1) * LANES + lane))/$((count * LANES))" >> "${out}/lane-${lane}.log" 2>&1 &
 	lane_pid[${lane}]=$!
 	running+=("${lane}")
 }
@@ -181,7 +193,7 @@ watch_lanes() {
 		if [ "$(df --output=avail -BM . | tail -n 1 | tr -dc 0-9)" -lt "${DISK_BUFFER_MB}" ]; then
 			echo "under ${DISK_BUFFER_MB} MB of disk left: stopping the build and emptying the model caches" >> "${out}/build.log"
 			for lane in "${running[@]}"; do stop_lane "${lane}"; done
-			rm -rf art/models/*/.cache "${lanes_dir}"/*/art/models/*/.cache
+			rm -rf art/models/*/.cache "${lanes_dir}"/*"${game_in_checkout}"/art/models/*/.cache
 			failed+=("${running[@]}")
 			running=() held=()
 			break
@@ -205,14 +217,19 @@ build() {
 	local id started=${SECONDS} status="DONE" build_seconds="-" upload="skipped" handed
 	id="$(basename "${out}")"
 	# With the engine from before a change shipped beside the new one
-	# (tools/modelkit/proof-base, put there for the proof and never committed),
+	# (framework/engine/proof-base, put there for the proof and never committed),
 	# this machine proves one sample model unchanged instead of building the
-	# layout (scripts/bake-proof.sh).
-	if [ -f tools/modelkit/proof-base/Cargo.toml ]; then
-		local samples=(ProofChunks BrushRock BrushCanvas PlotMarker ScrapCrate YardFence BeltCrossing RoughRocks)
-		local sample="${samples[$(((index - 1) % ${#samples[@]}))]}"
-		local proved="DONE"
-		scripts/bake-proof.sh tools/modelkit/proof-base "${sample}" > "${out}/proof.txt" 2>> "${out}/build.log" || proved="FAILED"
+	# layout (scripts/bake-proof.sh). The samples are the game's sample_models.
+	if [ -f "${FRAMEWORK}/engine/proof-base/Cargo.toml" ]; then
+		local samples proved="DONE"
+		read -r -a samples <<< "$(game_setting sample_models "")"
+		if [ ${#samples[@]} -eq 0 ]; then
+			echo "game.toml names no sample_models to prove the engine on" | tee "${out}/proof.txt" >> "${out}/build.log"
+			proved="FAILED"
+		else
+			"${FRAMEWORK}/scripts/bake-proof.sh" "${FRAMEWORK}/engine/proof-base" "${samples[$(((index - 1) % ${#samples[@]}))]}" \
+				> "${out}/proof.txt" 2>> "${out}/build.log" || proved="FAILED"
+		fi
 		{
 			echo "status=${proved}"
 			echo "build=-"
@@ -227,16 +244,16 @@ build() {
 	fi
 	# TEMP-COLD: a marker in the task's commit empties this machine's cache first,
 	# to time a cold build on machines that are already warm.
-	[ ! -f tools/modelkit/cold-build ] || rm -rf "${model}/.cache" "${lanes_dir}"/*/"${model}/.cache"
+	[ ! -f "${FRAMEWORK}/engine/cold-build" ] || rm -rf "${model}/.cache" "${lanes_dir}"/*"${game_in_checkout}/${model}/.cache"
 	# A build that was killed (out of memory, a paused machine) never pruned
 	# what it cached, and a machine kept for many tasks fills up. With under
 	# 8 GB free, every model's cache goes: a cold build beats a failed one.
 	if [ "$(df --output=avail -BG . | tail -n 1 | tr -dc 0-9)" -lt 8 ]; then
 		echo "low on disk ($(df --output=avail -h . | tail -n 1 | tr -d ' ') free): emptying the model caches"
-		rm -rf art/models/*/.cache "${lanes_dir}"/*/art/models/*/.cache
+		rm -rf art/models/*/.cache "${lanes_dir}"/*"${game_in_checkout}"/art/models/*/.cache
 	fi
 	# What the last build left here, in the build log: the model caches' size and the disk's free space.
-	echo "DISK before: cache $(du -scm art/models/*/.cache "${lanes_dir}"/*/art/models/*/.cache 2> /dev/null | tail -n 1 | cut -f1) MB, free $(df --output=avail -BM . | tail -n 1 | tr -dc 0-9) MB of $(df --output=size -BM . | tail -n 1 | tr -dc 0-9) MB" >> "${out}/build.log"
+	echo "DISK before: cache $(du -scm art/models/*/.cache "${lanes_dir}"/*"${game_in_checkout}"/art/models/*/.cache 2> /dev/null | tail -n 1 | cut -f1) MB, free $(df --output=avail -BM . | tail -n 1 | tr -dc 0-9) MB of $(df --output=size -BM . | tail -n 1 | tr -dc 0-9) MB" >> "${out}/build.log"
 	echo "CPUS: nproc $(nproc), online $(getconf _NPROCESSORS_ONLN), cgroup cpu.max $(cat /sys/fs/cgroup/cpu.max 2> /dev/null || echo none)" >> "${out}/build.log"
 	# A reading in the log every 10s while the build runs: memory in use, the
 	# largest process, and how much of the machine's CPU was busy since the
@@ -258,7 +275,7 @@ build() {
 	export MODELKIT_PROFILE=1
 	local build_started=${SECONDS} lane
 	{
-		scripts/assemble-model.sh "${layout}" && scripts/build-model.sh --engine && prepare_lanes
+		"${FRAMEWORK}/scripts/assemble-model.sh" "${layout}" && "${FRAMEWORK}/scripts/build-model.sh" --engine && prepare_lanes
 	} >> "${out}/build.log" 2>&1 || status="FAILED"
 	if [ "${status}" = "DONE" ]; then
 		for lane in $(seq 1 "${LANES}"); do start_lane "${lane}"; done
@@ -272,7 +289,7 @@ build() {
 		[ ${#failed[@]} -eq 0 ] || status="FAILED"
 		for lane in $(seq 1 "${LANES}"); do
 			# TEMP-DIAG: each texture's hash, to compare two engines' output file by file.
-			(cd "$(lane_root "${lane}")/${model}" && sha256sum ./*.png 2> /dev/null | awk -v lane="${lane}" '{ print "TEX", lane, substr($1, 1, 16), $2 }') >> "${out}/build.log"
+			(cd "$(lane_game "${lane}")/${model}" && sha256sum ./*.png 2> /dev/null | awk -v lane="${lane}" '{ print "TEX", lane, substr($1, 1, 16), $2 }') >> "${out}/build.log"
 			{
 				echo "LANE ${lane}: shard $(((index - 1) * LANES + lane))/$((count * LANES))"
 				cat "${out}/lane-${lane}.log"
@@ -288,7 +305,7 @@ build() {
 		# The lanes' results become one: every part, every cost, and the objects
 		# with one manifest, in the first lane's folder, where a hand-over looks.
 		local roots=()
-		for lane in $(seq 1 "${LANES}"); do roots+=("$(lane_root "${lane}")/${model}"); done
+		for lane in $(seq 1 "${LANES}"); do roots+=("$(lane_game "${lane}")/${model}"); done
 		python3 - "${layout}" "${out}" "${roots[@]}" << 'EOF' || status="FAILED"
 import json, os, shutil, struct, sys
 layout, out, roots = sys.argv[1], sys.argv[2], sys.argv[3:]
@@ -348,9 +365,9 @@ upload() {
 			git fetch -q --depth=1 origin "refs/heads/build-objects/s${shard}" || continue
 			[ "$(git show FETCH_HEAD:task.txt 2> /dev/null)" = "${of}" ] || continue
 			mkdir -p "${gathered}/${shard}"
-			git archive FETCH_HEAD | tar -x -C "${gathered}/${shard}"
+			git -C "${checkout}" archive FETCH_HEAD | tar -x -C "${gathered}/${shard}"
 		done
-		scripts/upload-objects.py "${layout}" "${gathered}"
+		"${FRAMEWORK}/scripts/upload-objects.py" "${layout}" "${gathered}"
 	} >> "${out}/build.log" 2>&1 || status="FAILED"
 	# What did upload is kept even when something failed, so nothing is sent twice.
 	cp "${gathered}/uploaded.tsv" "${out}/" 2> /dev/null && sent="$(wc -l < "${out}/uploaded.tsv")"

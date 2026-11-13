@@ -19,6 +19,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hive"))
+from game_settings import GAME_ROOT  # noqa: E402
+
 MARK = "Written by Claude, my coordinating session, on my behalf (I approved sending build orders this way). "
 
 
@@ -29,7 +32,7 @@ def send(session, message):
 	command = ("claude -p --strict-mcp-config --mcp-config '{\"mcpServers\":{}}' --disable-slash-commands"
 		" --setting-sources user --cloud " + shlex.quote(session) + " " + shlex.quote(MARK + message))
 	result = subprocess.run(["script", "-qfc", command, "/dev/null"], capture_output=True, text=True, timeout=120,
-		cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+		cwd=GAME_ROOT)
 	ok = result.returncode == 0 and "Sent to cloud session" in result.stdout
 	return ok, time.time() - started, (result.stdout + result.stderr).strip().splitlines()[-1:] if not ok else []
 

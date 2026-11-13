@@ -8,7 +8,7 @@ report(), and its cancel takes time and makes a task for the same unit
 wait for it, as the real agent's does. Lease timeouts are shortened
 through the constructor.
 
-  python3 tools/coordinator/test_queue.py [-v]
+  python3 framework/hive/hub/test_queue.py [-v]
 
 One PASS or FAIL line per case; exits 0 only when every case passes.
 """
@@ -31,8 +31,8 @@ import coordinator as hub  # noqa: E402
 import wire  # noqa: E402
 
 # The real agent (scripts/standby-agent.py), for its heartbeat and its take/cancel.
-_spec = importlib.util.spec_from_file_location("standby_agent",
-	os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "standby-agent.py"))
+_spec = importlib.util.spec_from_file_location("agent_script",
+	os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "standby-agent.py"))  # framework/scripts
 AGENT = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(AGENT)
 
@@ -65,7 +65,7 @@ class Hub:
 	async def start(self, folder=None):
 		"""In a new temporary folder, or in `folder` to take over a stopped hub's tasks file and results."""
 		self.folder = folder or tempfile.mkdtemp(prefix="queue-test-")
-		self.c = hub.Coordinator("ServerMap", True, test_without_identity=True, timeouts=TIMEOUTS, worker_key=KEY,
+		self.c = hub.Coordinator("TestMap", True, test_without_identity=True, timeouts=TIMEOUTS, worker_key=KEY,
 			tasks_file=os.path.join(self.folder, "tasks.json"), results=os.path.join(self.folder, "results"))
 		self.c.loop = asyncio.get_running_loop()
 		self.agents = await websockets.serve(self.c.agent, "127.0.0.1", 0, max_size=hub.MAX_MESSAGE)
@@ -123,7 +123,7 @@ class Fake:
 		number = int(self.name[1:])
 		if self.name.startswith("m"):
 			return {"type": "hello", "machine": number, "token": hub.WORKER_PREFIX + wire.machine_token(KEY, number), "units": units}
-		return {"type": "hello", "token": "test", "shard": number, "count": 20, "layout": "ServerMap", "units": units}
+		return {"type": "hello", "token": "test", "shard": number, "count": 20, "layout": "TestMap", "units": units}
 
 	async def connect(self):
 		self.socket = await websockets.connect(self.hub.agent_url, max_size=hub.MAX_MESSAGE)
@@ -564,7 +564,7 @@ async def case_k():
 	folder, here = tempfile.mkdtemp(prefix="queue-agent-"), os.getcwd()
 	os.chdir(folder)  # cancel() removes results/<unit> under the working folder
 	try:
-		agent = AGENT.Agent("ws://unused", "ServerMap", 1, 1, 60, 60)
+		agent = AGENT.Agent("ws://unused", "TestMap", 1, 1, 60, 60)
 		sent, starts = [], []
 
 		async def send(message):

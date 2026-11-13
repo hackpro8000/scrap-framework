@@ -6,8 +6,8 @@ import os
 import subprocess
 import time
 
-from standby_agent.common import CLAIM_TRIES, CLAIM_WAIT_SECONDS, say
-from standby_agent.machine import push_bakes, push_preview, trim_log
+from agent.common import CLAIM_TRIES, CLAIM_WAIT_SECONDS, ROOT, SCRIPTS, say
+from agent.machine import push_bakes, push_preview, trim_log
 import commits  # noqa: E402
 
 
@@ -40,7 +40,7 @@ class Previews:
 						self.begin(unit, "bake", log, model)
 					else:
 						self.begin(unit, "render", log, model)
-					await asyncio.to_thread(self.run_process, work, ["scripts/standby-previews.sh", model, "1", "1", out],
+					await asyncio.to_thread(self.run_process, work, [os.path.join(SCRIPTS, "standby-previews.sh"), model, "1", "1", out],
 						stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 				finally:
 					# Closed on a cancel too, so a killed engine's port takes no more claims.
@@ -162,7 +162,7 @@ class Previews:
 			self.bakes_ready.pop((identity, model), None)
 		timing["ready"] = time.monotonic()
 		say(f"task {identity}: swap of {share} over {timing['ready'] - timing['pushed']:.1f}s after its push; taking {len([c for c in commits if c != mine])} machines' bakes")
-		cache = os.path.join("art", "models", model, ".cache")
+		cache = os.path.join(ROOT, "art", "models", model, ".cache")
 		fetched = await asyncio.gather(*[asyncio.to_thread(self.fetch_objects, commit, cache) for commit in commits if commit != mine], return_exceptions=True)
 		timing["fetched"] = time.monotonic()
 		for error in [result for result in fetched if isinstance(result, Exception)]:

@@ -24,10 +24,14 @@
 
 set -uo pipefail
 
+source "$(dirname "$0")/lib/game.sh"
 names="${1:?model names required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
-out="${4:?results folder required}"
+# The results folder is named from the checkout; the work runs in the game's folder.
+mkdir -p "${4:?results folder required}"
+out="$(cd "$4" && pwd)"
+cd "${GAME_ROOT}"
 
 IFS=, read -ra list <<< "${names}"
 n=0
@@ -66,10 +70,10 @@ for name in "${list[@]}"; do
 	rm -rf "${rendered}"/preview.png "${rendered}"/eye_*.png "${rendered}"/closeup_*.png "${rendered}"/parts.png "${rendered}"/face_*.png "${rendered}"/cells.txt "${rendered}"/turntable
 	# A marker in the task's commit empties this machine's caches first, to
 	# time a cold build on machines that are already warm.
-	[ ! -f tools/modelkit/cold-build ] || rm -rf art/models/*/.cache
+	[ ! -f "${FRAMEWORK}/engine/cold-build" ] || rm -rf art/models/*/.cache
 	# The bake's time per layer goes in the log, so a build's cost can be read
 	# off the machine that paid it.
-	if MODELKIT_PROFILE=1 scripts/build-model.sh "${model}" -- "${quality[@]}" --turntable 4 "${size[@]}" "${share[@]}" "${extra[@]}" > "${dir}/build.log" 2>&1; then
+	if MODELKIT_PROFILE=1 "${FRAMEWORK}/scripts/build-model.sh" "${model}" -- "${quality[@]}" --turntable 4 "${size[@]}" "${share[@]}" "${extra[@]}" > "${dir}/build.log" 2>&1; then
 		cp "${rendered}/preview.png" "${dir}/preview.png" 2> /dev/null || true
 		for turn in 0 1 2 3; do
 			cp "${rendered}/turntable/000${turn}.png" "${dir}/view${turn}.png" 2> /dev/null || true

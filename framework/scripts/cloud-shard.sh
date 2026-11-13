@@ -6,7 +6,7 @@
 #   scripts/cloud-shard.sh <task> <index> <count> [commit]
 #
 # It prepares the machine (scripts/machine-setup/map-build.sh), builds the
-# shard of ServerMap (scripts/standby-task.sh), writes build.log, parts.txt,
+# shard of the game's default_layout (scripts/standby-task.sh), writes build.log, parts.txt,
 # manifest.json, costs.txt and summary.txt to cloud-results/S<index>/, then
 # commits that folder and pushes it, where scripts/cloud-results.sh collects
 # it. The objects stay on the machine.
@@ -27,8 +27,9 @@ task="${1:?task name required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
 commit="${4:-}"
-layout=ServerMap
-root="$(cd "$(dirname "$0")/.." && pwd)"
+source "$(dirname "$0")/lib/game.sh"
+layout="$(game_setting default_layout)"
+root="${GAME_ROOT}"
 cd "${root}"
 
 branch="cloud-results/${task}/s${index}"
@@ -38,11 +39,11 @@ if [ -n "${commit}" ]; then
 		git fetch -q origin "${commit}" || { echo "cloud-shard: could not fetch ${commit}" >&2; exit 1; }
 		git checkout -q -f --detach FETCH_HEAD || exit 1
 		# Run the fetched commit's own copy of this script.
-		exec scripts/cloud-shard.sh "${task}" "${index}" "${count}" "${commit}"
+		exec "${FRAMEWORK}/scripts/cloud-shard.sh" "${task}" "${index}" "${count}" "${commit}"
 	fi
 fi
 
-scripts/machine-setup/map-build.sh || exit 1
+"${FRAMEWORK}/scripts/machine-setup/map-build.sh" || exit 1
 export PATH="${HOME}/.local/bin:${PATH}"
 [ -f "${HOME}/.cargo/env" ] && . "${HOME}/.cargo/env"
 # As the workflow sets for every machine.
@@ -53,7 +54,7 @@ rm -rf "${out}"
 mkdir -p "${out}"
 printf 'ref=%s\nupload=no\n' "$(git rev-parse HEAD)" > "${out}/task.txt"
 started="${SECONDS}"
-scripts/standby-task.sh "${layout}" "${index}" "${count}" "${out}" > "${out}/task.out" 2>&1
+"${FRAMEWORK}/scripts/standby-task.sh" "${layout}" "${index}" "${count}" "${out}" > "${out}/task.out" 2>&1
 status=$?
 rm -rf "${out}/handed"
 {
@@ -64,7 +65,7 @@ rm -rf "${out}/handed"
 echo "shard ${index} of ${count}: build exit ${status} in $((SECONDS - started))s"
 
 git add -f "${out}"
-git -c user.name="scrap-heist cloud shard" -c user.email="cloud-shard@users.noreply.github.com" \
+git -c user.name="$(game_setting name) cloud shard" -c user.email="cloud-shard@users.noreply.github.com" \
 	commit -q -m "${task} shard ${index} of ${count}" || echo "cloud-shard: nothing to commit"
 for attempt in 1 2 3 4; do
 	if git push -q -f origin "HEAD:refs/heads/${branch}"; then
@@ -76,6 +77,6 @@ for attempt in 1 2 3 4; do
 done
 # A build regenerates the layout's model.luau and may refresh the engine
 # binary; put them back so the checkout is clean for the next task.
-git checkout -q -- art/models tools/modelkit/bin 2> /dev/null || true
+git checkout -q -- art/models "${FRAMEWORK}/engine/bin" 2> /dev/null || true
 cat "${out}/summary.txt" 2> /dev/null || tail -n 15 "${out}/task.out"
 exit "${status}"

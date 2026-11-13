@@ -6,16 +6,16 @@
 # preview build. Prints one last line: TRY OK in Ns (update As, engine Bs,
 # build Cs), or TRY FAILED at <step> after that step's output.
 #
-#   scripts/pipeline-try.sh                       # ProofKettle, 2 units
+#   scripts/pipeline-try.sh                       # the game's try_models, 2 units
 #   scripts/pipeline-try.sh --engine              # compile the engine even if unchanged
 #   scripts/pipeline-try.sh --models A,B
 
 set -uo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}" || exit 1
+source "$(dirname "$0")/lib/game.sh" || exit 1
+cd "${GAME_ROOT}" || exit 1
 force_engine=""
-models="ProofKettle"
+models="$(game_setting try_models "")"
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--engine) force_engine=1 ;;
@@ -24,7 +24,8 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-client=(python3 tools/coordinator/client.py)
+[ -n "${models}" ] || { echo "pipeline-try: no models to preview; pass --models A,B or set try_models in game.toml" >&2; exit 2; }
+client=(python3 "${FRAMEWORK}/hive/hub/client.py")
 logs="$(mktemp -d)"
 trap 'rm -rf "${logs}"' EXIT
 began="$(date +%s)"
@@ -46,7 +47,7 @@ step() {
 	return "${PIPESTATUS[0]}"
 }
 
-step push scripts/push-wip.sh || failed push
+step push "${FRAMEWORK}/scripts/push-wip.sh" || failed push
 sha="$(git rev-parse --verify "$(tail -n 1 "${logs}/push.log")^{commit}" 2> /dev/null)" || failed push
 
 step status "${client[@]}" status || failed status
@@ -55,7 +56,7 @@ needs_update=1
 if [ -n "${hub_code}" ]; then
 	git cat-file -e "${hub_code}^{commit}" 2> /dev/null || git fetch -q --depth=1 origin "${hub_code}" 2> /dev/null || true
 	if git cat-file -e "${hub_code}^{commit}" 2> /dev/null \
-		&& git diff --quiet "${hub_code}" "${sha}" -- tools/coordinator scripts/standby-agent.py scripts/standby_agent; then
+		&& git diff --quiet "${hub_code}" "${sha}" -- "${FRAMEWORK}/hive" "${FRAMEWORK}/scripts/standby-agent.py"; then
 		needs_update=""
 	fi
 fi
@@ -70,7 +71,7 @@ fi
 needs_engine="${force_engine}"
 if [ -z "${needs_engine}" ]; then
 	# The same hash scripts/build-model.sh keeps; the build-engine branch holds the last one a machine compiled.
-	source_sha="$(cd tools/modelkit && find src Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
+	source_sha="$(cd "${FRAMEWORK}/engine" && find src Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
 	shared=""
 	git fetch -q --depth=1 origin refs/heads/build-engine 2> /dev/null && shared="$(git show FETCH_HEAD:source-sha 2> /dev/null || true)"
 	[ "${shared}" = "${source_sha}" ] || needs_engine=1

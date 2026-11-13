@@ -15,6 +15,8 @@ came before, and the binary chunks are laid end to end in one buffer.
 import json
 import struct
 
+from game_settings import setting
+
 GLB, JSON_CHUNK, BIN_CHUNK = 0x46546C67, 0x4E4F534A, 0x004E4942
 
 # Lists that are joined, and in each kind of entry the fields that point
@@ -118,7 +120,7 @@ def join(objects):
 		tops.append(len(out["nodes"]) - 1)
 		used.update(doc.get("extensionsUsed", []))
 
-	doc = {"asset": {"version": "2.0", "generator": "scrap-heist bundle"}, "scene": 0, "scenes": [{"nodes": tops}]}
+	doc = {"asset": {"version": "2.0", "generator": f"{setting('name')} bundle"}, "scene": 0, "scenes": [{"nodes": tops}]}
 	doc.update({name: items for name, items in out.items() if items})
 	doc["buffers"] = [{"byteLength": len(binary)}]
 	if used:

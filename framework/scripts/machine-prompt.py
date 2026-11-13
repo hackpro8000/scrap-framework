@@ -10,15 +10,15 @@ words each machine receives are yours.
 
 --edit does it all in one command: it opens the message in your editor
 ($EDITOR, else nano; the last message is kept in
-~/.cache/scrap-heist/message.txt), shows what would be sent, and sends once
-you answer y.
+message.txt in the game's cache folder, ~/.cache/<name>), shows what would
+be sent, and sends once you answer y.
 
 Every {n} in the message becomes the machine's number (m7 gets 7). {pr}
 becomes the number of that machine's wake-up pull request and {token} its
-hub worker token, from ~/.cache/scrap-heist/prs.tsv and tokens.tsv (machine,
+hub worker token, from prs.tsv and tokens.tsv in the cache folder (machine,
 value). --clear
 sends /clear to each machine first, so it starts with an empty conversation.
-Machines come from ~/.cache/scrap-heist/machines.tsv (machine, session id).
+Machines come from machines.tsv in the cache folder (machine, session id).
 Each send is a short-lived `claude -p --cloud <session>`; a send that fails
 (parallel sends sometimes collide on the login token) is tried up to 3 times.
 """
@@ -30,11 +30,14 @@ import subprocess
 import sys
 import time
 
-REGISTRY = os.path.expanduser("~/.cache/scrap-heist/machines.tsv")
-DRAFT = os.path.expanduser("~/.cache/scrap-heist/message.txt")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hive"))
+from game_settings import GAME_ROOT, cache_dir  # noqa: E402
+
+REGISTRY = os.path.join(cache_dir(), "machines.tsv")
+DRAFT = os.path.join(cache_dir(), "message.txt")
 # Per-machine values a message can name: placeholder, then its file.
-VALUES = {"pr": os.path.expanduser("~/.cache/scrap-heist/prs.tsv"), "token": os.path.expanduser("~/.cache/scrap-heist/tokens.tsv")}
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VALUES = {"pr": os.path.join(cache_dir(), "prs.tsv"), "token": os.path.join(cache_dir(), "tokens.tsv")}
+ROOT = str(GAME_ROOT)
 
 
 def parse_machines(text):

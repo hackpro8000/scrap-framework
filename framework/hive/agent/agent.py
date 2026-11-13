@@ -10,15 +10,15 @@ import time
 
 import websockets
 
-from standby_agent import common, machine
-from standby_agent.common import ADDRESS_BRANCH, LOST_MINUTES, MAX_MESSAGE, REQUIRED_TOOLS, TUNNEL_ALERT_FAILURES, alert, say
-from standby_agent.machine import ensure_tools, http_status, identity_token
-from standby_agent.previews import Previews
-from standby_agent.sending import Sending
-from standby_agent.units import Units
-from standby_agent.uploads import Uploads
-from standby_agent.update import Updates, current_commit, lifetime_left
-from standby_agent.engine import EngineUnits
+from agent import common, machine
+from agent.common import ADDRESS_BRANCH, LOST_MINUTES, MAX_MESSAGE, REQUIRED_TOOLS, TUNNEL_ALERT_FAILURES, alert, say
+from agent.machine import ensure_tools, http_status, identity_token
+from agent.previews import Previews
+from agent.sending import Sending
+from agent.units import Units
+from agent.uploads import Uploads
+from agent.update import Updates, current_commit, lifetime_left
+from agent.engine import EngineUnits
 import wire  # noqa: E402
 
 

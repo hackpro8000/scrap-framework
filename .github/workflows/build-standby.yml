@@ -26,12 +26,16 @@
 # Without a coordinator, machines wait on the build-queue branch
 # (scripts/standby.sh).
 #
-#   scripts/standby-start.sh 20
+#   framework/scripts/standby-start.sh 20
 #   gh workflow run build-standby.yml -f ref=wip/coordinator -f shards=20
+#
+# The checkout root is the game's folder (game.toml); the scripts named here
+# are in framework/scripts/. An empty layout builds the game's default_layout,
+# and the tailnet names start with its host_prefix.
 name: Build standby
 # The run's title carries its settings, so scripts/standby-status.sh can read
 # them from the run list (workflow inputs aren't in the runs API).
-run-name: "Standby ${{ inputs.layout }} x${{ inputs.shards }} from ${{ inputs.ref }} (idle ${{ inputs.minutes }}m, max ${{ inputs.max_minutes }}m)${{ inputs.coordinator == 'machine-1' && ' live on machine 1' || inputs.coordinator != '' && ' live' || '' }}"
+run-name: "Standby ${{ inputs.layout || 'default' }} x${{ inputs.shards }} from ${{ inputs.ref }} (idle ${{ inputs.minutes }}m, max ${{ inputs.max_minutes }}m)${{ inputs.coordinator == 'machine-1' && ' live on machine 1' || inputs.coordinator != '' && ' live' || '' }}"
 
 on:
   workflow_dispatch:
@@ -40,8 +44,8 @@ on:
         description: Commit or branch to warm up from
         default: main
       layout:
-        description: Layout the tasks build
-        default: ServerMap
+        description: Layout the tasks build (empty for the game's default_layout)
+        default: ""
       shards:
         description: Number of machines (1-20)
         default: "8"
@@ -88,17 +92,24 @@ jobs:
           ref: ${{ inputs.ref }}
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            /scripts/
+            /game.toml
+            /framework/
             /art/src/
             /art/models/*/model.luau
-            /tools/modelkit/
-            /tools/coordinator/
+      # A workflow input's default can't read a file, so the game's settings come in here.
+      - name: Read the game's settings
+        env:
+          INPUT_LAYOUT: ${{ inputs.layout }}
+        run: |
+          source framework/scripts/lib/game.sh
+          echo "LAYOUT=${INPUT_LAYOUT:-$(game_setting default_layout)}" >> "$GITHUB_ENV"
+          echo "HOST_PREFIX=$(game_setting host_prefix)" >> "$GITHUB_ENV"
       - name: Join the tailnet
         if: ${{ env.HAS_TAILNET == 'yes' && (startsWith(inputs.coordinator, 'ws://') || inputs.coordinator == 'machine-1') }}
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
-          hostname: ${{ matrix.shard == 1 && format('scrap-coordinator-{0}', github.run_id) || format('scrap-builder-{0}-{1}', github.run_id, matrix.shard) }}
+          hostname: ${{ matrix.shard == 1 && format('{0}-coordinator-{1}', env.HOST_PREFIX, github.run_id) || format('{0}-builder-{1}-{2}', env.HOST_PREFIX, github.run_id, matrix.shard) }}
       - name: Install the agent's websocket library
         if: ${{ inputs.coordinator != '' }}
         run: python3 -m pip install --user --break-system-packages --quiet websockets==10.4
@@ -119,9 +130,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ "$COORDINATOR" = "machine-1" ] && [ "$HAS_TAILNET" = "yes" ]; then
             if [ "$SHARD" = "1" ]; then
-              nohup python3 tools/coordinator/coordinator.py serve --git-link --agent-host "$(tailscale ip -4 | head -n 1)" --control-host "$(tailscale ip -4 | head -n 1)" > coordinator.log 2>&1 &
+              nohup python3 framework/hive/hub/coordinator.py serve --git-link --agent-host "$(tailscale ip -4 | head -n 1)" --control-host "$(tailscale ip -4 | head -n 1)" > coordinator.log 2>&1 &
             fi
-            COORDINATOR="ws://scrap-coordinator-${RUN_ID}:8765"
+            COORDINATOR="ws://${HOST_PREFIX}-coordinator-${RUN_ID}:8765"
           elif [ "$COORDINATOR" = "machine-1" ]; then
             # No tailnet: Cloudflare quick tunnels, control admitted by key.
             [ -n "$CONTROL_KEY" ] || { echo "::error::machine-1 without TS_AUTHKEY needs the control_key input"; exit 1; }
@@ -132,7 +143,7 @@ jobs:
               # Restarted on the same ports if it exits, so the tunnels and the
               # published address stay good; stops once this step ends.
               : > coordinator.log
-              nohup bash -c 'until [ -e coordinator.stop ]; do python3 tools/coordinator/coordinator.py serve --relay-results --control-key "$CONTROL_KEY" >> coordinator.log 2>&1; [ -e coordinator.stop ] || { echo "coordinator: exited; restarting" >> coordinator.log; sleep 1; }; done' > /dev/null 2>&1 &
+              nohup bash -c 'until [ -e coordinator.stop ]; do python3 framework/hive/hub/coordinator.py serve --relay-results --control-key "$CONTROL_KEY" >> coordinator.log 2>&1; [ -e coordinator.stop ] || { echo "coordinator: exited; restarting" >> coordinator.log; sleep 1; }; done' > /dev/null 2>&1 &
               for _ in $(seq 1 50); do grep -q "machines on" coordinator.log && break; sleep 0.2; done
               grep -q "machines on" coordinator.log || { echo "::error::the coordinator did not come up"; tail -n 30 coordinator.log; exit 1; }
               tunnel() {
@@ -171,7 +182,7 @@ jobs:
                   break
                 fi
                 if [ "$attempt" = 4 ]; then
-                  echo "ALERT TUNNEL_DOWN: machine 1's $down through its public address after 3 reopenings | cancel this run and start a new one (scripts/standby-start.sh --on-machine)"
+                  echo "ALERT TUNNEL_DOWN: machine 1's $down through its public address after 3 reopenings | cancel this run and start a new one (framework/scripts/standby-start.sh --on-machine)"
                   break
                 fi
                 echo "ALERT TUNNEL_DOWN: machine 1's $down through its public address | reopening it ($attempt of 3)"
@@ -203,9 +214,9 @@ jobs:
             # touch: machine 1 stops restarting its coordinator once the agent is over.
             # The runner and this machine's agent come next after the hub.
             for pid in $$ $(pgrep -f 'Runner.Listener|Runner.Worker'); do sudo -n choom -n -900 -p "$pid" || true; done
-            scripts/standby-agent.py "$COORDINATOR" "${{ inputs.layout }}" "$SHARD" "${{ inputs.shards }}" "$minutes" "$max_minutes" || status=$?
+            framework/scripts/standby-agent.py "$COORDINATOR" "$LAYOUT" "$SHARD" "${{ inputs.shards }}" "$minutes" "$max_minutes" || status=$?
             touch coordinator.stop
             exit "${status:-0}"
           else
-            scripts/standby.sh "${{ inputs.layout }}" "$SHARD" "${{ inputs.shards }}" "$minutes" "$max_minutes"
+            framework/scripts/standby.sh "$LAYOUT" "$SHARD" "${{ inputs.shards }}" "$minutes" "$max_minutes"
           fi

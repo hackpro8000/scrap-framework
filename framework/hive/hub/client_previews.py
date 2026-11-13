@@ -4,9 +4,10 @@ import json
 import os
 
 from client_connection import ROOT
+from hub_config import cache_dir
 
 # Measured machine-seconds per model's previews, for cost-sized shares.
-PREVIEW_SECONDS = os.path.expanduser("~/.cache/scrap-heist/preview-seconds.json")
+PREVIEW_SECONDS = os.path.join(cache_dir(), "preview-seconds.json")
 
 
 def model_bytes(name):

@@ -5,7 +5,7 @@ import re
 import subprocess
 
 import wire
-from client_connection import ROOT
+from client_connection import ROOT, SCRIPTS
 
 # The only repo files a relayed preview may write: what a local coordinator writes beside a model.
 RELAYED_REPO_FILE = re.compile(r"art/models/[A-Za-z0-9_]+/(preview\.png|views\.png|previewed\.txt)")
@@ -66,7 +66,7 @@ def merge_here(layout, out):
 	if not isinstance(layout, str) or not LAYOUT_NAME.fullmatch(layout) or not os.path.isfile(os.path.join(ROOT, "art", "src", "layouts", f"{layout}.luau")):
 		return {"error": f"the coordinator named a layout that is not here: {str(layout)[:80]!r}"}
 	shards = sorted(os.path.join(out, name) for name in os.listdir(out) if name.startswith("S"))
-	result = subprocess.run(["scripts/merge-shards.sh", layout, *shards], cwd=ROOT, capture_output=True, text=True)
+	result = subprocess.run([os.path.join(SCRIPTS, "merge-shards.sh"), layout, *shards], cwd=ROOT, capture_output=True, text=True)
 	if result.returncode != 0:
 		return {"error": result.stderr.strip()[-300:]}
 	return {"new_assets": [line for line in result.stdout.split() if re.fullmatch(r"[0-9]+", line)]}

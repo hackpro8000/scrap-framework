@@ -1,4 +1,5 @@
-# Builds a layout (ServerMap) split across parallel machines with modelkit
+# Builds a layout (by default the game's default_layout, from game.toml at the
+# checkout root; scripts are in framework/scripts/) split across parallel machines with modelkit
 # --shard, uploads every shard's chunks to Roblox and opens a PR with the
 # merged chunk IDs and anchors. Run it from the Actions tab or with
 #
@@ -19,11 +20,11 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Commit or branch to build (scripts/push-wip.sh pushes unfinished work to wip/coordinator)
+        description: Commit or branch to build (framework/scripts/push-wip.sh pushes unfinished work to wip/coordinator)
         default: main
       layout:
-        description: Layout to build
-        default: ServerMap
+        description: Layout to build (empty for the game's default_layout)
+        default: ""
       shards:
         description: Number of machines (1-16)
         default: "8"
@@ -45,7 +46,6 @@ jobs:
         # A lookup instead of a planning job, which would cost a machine start.
         shard: ${{ fromJSON('{"1":[1],"2":[1,2],"3":[1,2,3],"4":[1,2,3,4],"5":[1,2,3,4,5],"6":[1,2,3,4,5,6],"7":[1,2,3,4,5,6,7],"8":[1,2,3,4,5,6,7,8],"9":[1,2,3,4,5,6,7,8,9],"10":[1,2,3,4,5,6,7,8,9,10],"11":[1,2,3,4,5,6,7,8,9,10,11],"12":[1,2,3,4,5,6,7,8,9,10,11,12],"13":[1,2,3,4,5,6,7,8,9,10,11,12,13],"14":[1,2,3,4,5,6,7,8,9,10,11,12,13,14],"15":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"16":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]}')[inputs.shards] }}
     env:
-      LAYOUT: ${{ inputs.layout }}
       SHARE: ${{ matrix.shard }}/${{ inputs.shards }}
       # This machine's cache holds only its own share, so pruning it is safe.
       MODELKIT_PRUNE: "1"
@@ -58,34 +58,41 @@ jobs:
           ref: ${{ inputs.ref }}
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            /scripts/
+            /game.toml
+            /framework/
             /art/src/
             /art/models/*/model.luau
-            /tools/modelkit/
+      # A workflow input's default can't read a file, so the layout falls back here.
+      - name: Read the game's settings
+        env:
+          INPUT_LAYOUT: ${{ inputs.layout }}
+        run: |
+          source framework/scripts/lib/game.sh
+          echo "LAYOUT=${INPUT_LAYOUT:-$(game_setting default_layout)}" >> "$GITHUB_ENV"
       - name: Restore this shard's build cache
         uses: actions/cache/restore@v4
         with:
-          path: art/models/${{ inputs.layout }}/.cache
-          key: shard-cache-${{ inputs.layout }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
-          restore-keys: shard-cache-${{ inputs.layout }}-${{ inputs.shards }}-${{ matrix.shard }}-
+          path: art/models/${{ env.LAYOUT }}/.cache
+          key: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
+          restore-keys: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-
       - name: Build shard ${{ matrix.shard }}
         run: |
           cache="art/models/$LAYOUT/.cache"
           mkdir -p "$cache"
           echo "CACHE_BEFORE=$(ls "$cache" | sha1sum | cut -c1-16)" >> "$GITHUB_ENV"
           echo "CACHE_ENTRIES=$(ls "$cache" | wc -l)" >> "$GITHUB_ENV"
-          scripts/assemble-model.sh "$LAYOUT"
+          framework/scripts/assemble-model.sh "$LAYOUT"
           start=$SECONDS
           set -o pipefail
-          scripts/build-model.sh "$LAYOUT" -- --chunks --shard "$SHARE" 2>&1 | tee build.log
+          framework/scripts/build-model.sh "$LAYOUT" -- --chunks --shard "$SHARE" 2>&1 | tee build.log
           echo "BUILD_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
           echo "CACHE_AFTER=$(ls "$cache" | sha1sum | cut -c1-16)" >> "$GITHUB_ENV"
       - name: Save this shard's build cache
         if: env.CACHE_AFTER != env.CACHE_BEFORE
         uses: actions/cache/save@v4
         with:
-          path: art/models/${{ inputs.layout }}/.cache
-          key: shard-cache-${{ inputs.layout }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
+          path: art/models/${{ env.LAYOUT }}/.cache
+          key: shard-cache-${{ env.LAYOUT }}-${{ inputs.shards }}-${{ matrix.shard }}-${{ github.run_id }}
       - name: Collect results
         run: |
           out="results/S${{ matrix.shard }}"
@@ -104,7 +111,7 @@ jobs:
         if: env.ROBLOX_API_KEY != '' && env.ROBLOX_CREATOR_ID != ''
         run: |
           start=$SECONDS
-          scripts/upload-chunks.sh "$LAYOUT"
+          framework/scripts/upload-chunks.sh "$LAYOUT"
           cp "art/models/$LAYOUT/chunks/${LAYOUT}AssetIds.txt" "results/S${{ matrix.shard }}/"
           echo "UPLOAD_SECONDS=$((SECONDS - start))" >> "$GITHUB_ENV"
       - name: Summary
@@ -122,17 +129,22 @@ jobs:
   merge:
     needs: build
     runs-on: ubuntu-24.04
-    env:
-      LAYOUT: ${{ inputs.layout }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            /scripts/
+            /game.toml
+            /framework/
             /art/src/layouts/
             /src/shared/
+      - name: Read the game's settings
+        env:
+          INPUT_LAYOUT: ${{ inputs.layout }}
+        run: |
+          source framework/scripts/lib/game.sh
+          echo "LAYOUT=${INPUT_LAYOUT:-$(game_setting default_layout)}" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
           path: shards
@@ -159,7 +171,7 @@ jobs:
             what="build times"
           fi
           if ls shards/shard-*/"${LAYOUT}AssetIds.txt" > /dev/null 2>&1; then
-            scripts/merge-shards.sh "$LAYOUT" $(ls -d shards/shard-* | sort -V)
+            framework/scripts/merge-shards.sh "$LAYOUT" $(ls -d shards/shard-* | sort -V)
             what="chunks${what:+ and $what}"
           else
             echo "No chunks were uploaded (no Roblox secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
@@ -178,7 +190,7 @@ jobs:
           git push origin "$branch"
           if gh pr create --base main --head "$branch" \
             --title "$LAYOUT $what: ${{ inputs.shards }}-shard build of ${{ inputs.ref }}" \
-            --body "New $what from [run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). Build times deal the next run's shards by cost. New chunk IDs load in Studio with tools/studio/PlaceMap.luau."; then
+            --body "New $what from [run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). Build times deal the next run's shards by cost. New chunk IDs load in Studio with framework/studio/PlaceMap.luau."; then
             echo "Opened a PR from $branch" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Pushed $branch, but couldn't open a PR (allow GitHub Actions to create pull requests in the repository settings): ${{ github.server_url }}/${{ github.repository }}/compare/$branch" | tee -a "$GITHUB_STEP_SUMMARY"

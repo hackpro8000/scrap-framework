@@ -12,8 +12,9 @@
 set -euo pipefail
 
 question="${1:?the question is required}"
-cd "$(dirname "$0")/.."
-seat="$(git rev-parse --absolute-git-dir)/scrap-worker"
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
+seat="$(git rev-parse --absolute-git-dir)/$(game_setting name)-worker"
 number="$(awk '{print $1}' "${seat}" 2> /dev/null || true)"
 number="${number:-0}"
 folder="$(mktemp -d)"
@@ -25,5 +26,5 @@ trap 'rm -rf "${folder}"' EXIT
 	echo
 	echo "${question}"
 } > "${folder}/question.txt"
-scripts/push-folder.sh "${folder}" "machine-questions/m${number}" "m${number} asks" > /dev/null
+"${FRAMEWORK}/scripts/push-folder.sh" "${folder}" "machine-questions/m${number}" "m${number} asks" > /dev/null
 echo "machine-ask: posted to machine-questions/m${number}"

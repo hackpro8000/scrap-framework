@@ -1,11 +1,11 @@
 """Agent mixin: machine 1 as the uploader: objects arrive over the
-connection or from a builder's commit and go to tools/coordinator/uploader.py."""
+connection or from a builder's commit and go to framework/hive/hub/uploader.py."""
 import asyncio
 import json
 import os
 import time
 
-from standby_agent.common import ROOT, say
+from agent.common import ROOT, say
 import uploader as uploading  # noqa: E402
 
 

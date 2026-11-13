@@ -24,13 +24,14 @@ if [ "${1:-}" = "--on-machine" ]; then
 fi
 shards="${1:-20}"
 ref="${2:-wip/coordinator}"
-cd "$(dirname "$0")/.."
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
 control_key=""
 if [ "${on_machine}" = yes ]; then
 	url="machine-1"
-	control_key="$(scripts/coordinator.sh key)"
+	control_key="$("${FRAMEWORK}/scripts/coordinator.sh" key)"
 else
-	url="$(scripts/coordinator.sh url 2> /dev/null || true)"
+	url="$("${FRAMEWORK}/scripts/coordinator.sh" url 2> /dev/null || true)"
 fi
 # One standby at a time: an older run still up would hold the account's
 # machine slots and this one would wait behind it in GitHub's queue.
@@ -43,7 +44,7 @@ branch="$(git rev-parse --abbrev-ref HEAD)"
 # Machines run the code they check out, so a scratch branch gets this
 # working tree first; otherwise they would run an older snapshot.
 case "${ref}" in
-	wip/*) scripts/push-wip.sh "${ref}" > /dev/null ;;
+	wip/*) "${FRAMEWORK}/scripts/push-wip.sh" "${ref}" > /dev/null ;;
 esac
 gh workflow run build-standby.yml --ref "${STANDBY_WORKFLOW_REF:-${branch}}" -f ref="${ref}" -f shards="${shards}" \
 	-f coordinator="${url}" -f control_key="${control_key}"

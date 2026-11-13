@@ -2,18 +2,19 @@
 # Prints the build messages for a task on the reserved cloud build machines,
 # one "<session id> <message>" line per shard, split into groups so several
 # senders can deliver them at once. Machine m<i> builds shard i, from the
-# registry ~/.cache/scrap-heist/machines.tsv (machine, session id).
+# registry machines.tsv in the game's cache folder (machine, session id).
 #
 #   scripts/machine-orders.sh <task> <count> <commit> [groups, default 1]
 #
 # With groups > 1 each group starts with a "# group <n>" line.
 set -euo pipefail
 
+source "$(dirname "$0")/lib/game.sh"
 task="${1:?task name required}"
 count="${2:?shard count required}"
 commit="${3:?commit required}"
 groups="${4:-1}"
-registry="${HOME}/.cache/scrap-heist/machines.tsv"
+registry="$(game_cache_dir)/machines.tsv"
 [ -f "${registry}" ] || { echo "no machine registry at ${registry}" >&2; exit 1; }
 
 awk -F '\t' -v task="${task}" -v count="${count}" -v commit="${commit}" -v groups="${groups}" '

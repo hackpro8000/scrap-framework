@@ -14,9 +14,12 @@ import json
 import time
 import urllib.request
 
+from game_settings import setting
+
 ISSUER = "https://token.actions.githubusercontent.com"
 JWKS_URL = f"{ISSUER}/.well-known/jwks"
-AUDIENCE = "scrap-heist-coordinator"
+# The agent asks for the same audience (framework/hive/agent/common.py).
+AUDIENCE = f"{setting('name')}-coordinator"
 # DER prefix of a PKCS#1 v1.5 SHA-256 DigestInfo.
 SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
 

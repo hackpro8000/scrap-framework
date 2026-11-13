@@ -1,5 +1,5 @@
 """Cases for hot updates and engine checks (hub_update.py, hub_engine.py,
-client_update.py, scripts/standby_agent/update.py), run by test_queue.py with
+client_update.py, framework/hive/agent/update.py), run by test_queue.py with
 its other cases. The hub's checkout and exit, and the real agent's checkout
 and re-execution, are replaced by seams that record what they were asked;
 the hub's "restart" is a new boot id on the same hub."""
@@ -20,12 +20,12 @@ def cases(q):
 	"""The cases, given test_queue's own module (its Hub, Fake, post, check)."""
 	client_update.POLL_SECONDS = 0.05
 	# The real agent's modules (loaded with scripts/standby-agent.py) say and alert on their own.
-	from standby_agent import update as agent_update
+	from agent import update as agent_update
 	alerts = []
 	agent_update.alert = alerts.append
 	if "-v" not in sys.argv:
 		for name, module in list(sys.modules.items()):
-			if name.startswith("standby_agent") and hasattr(module, "say"):
+			if name.startswith("agent.") and hasattr(module, "say"):
 				module.say = lambda message: None
 
 	class Updater(q.Fake):
@@ -173,7 +173,7 @@ def cases(q):
 		sessions = []
 
 		def real(index, code, fail=False):
-			agent = q.AGENT.Agent(at.agent_url, "ServerMap", index, 20, 60, 300)
+			agent = q.AGENT.Agent(at.agent_url, "TestMap", index, 20, 60, 300)
 			agent.code_commit, agent.checkouts, agent.execs = code, [], []
 			agent.checkout_code = lambda commit: (agent.checkouts.append(commit), (not fail, "fetch: no such commit"))[1]
 			agent.reexec = agent.execs.append

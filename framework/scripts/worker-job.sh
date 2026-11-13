@@ -3,11 +3,11 @@
 # Every job starts fresh from the code it names, so a worker can take any
 # number of jobs one after another without leftovers from the last one.
 #
-#   scripts/worker-job.sh W3 servermap-a-s3 shard ServerMap 3/8
+#   scripts/worker-job.sh W3 map-a-s3 shard <Layout> 3/8
 #       build one shard of a layout and upload its chunks
-#   scripts/worker-job.sh W3 crane-a model MagnetCrane
+#   scripts/worker-job.sh W3 crate-a model <Model>
 #       build one model and send back its preview
-#   scripts/worker-job.sh W3 crane-b model MagnetCrane @3f9c2ab
+#   scripts/worker-job.sh W3 crate-b model <Model> @3f9c2ab
 #       build that commit or branch instead of main (scripts/push-wip.sh
 #       pushes unfinished work to wip/coordinator for this)
 #
@@ -31,8 +31,9 @@ if [ $# -gt 0 ] && [[ "${!#}" == @* ]]; then
 	set -- "${@:1:$#-1}"
 fi
 pr="${RESULTS_PR:-1}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}" || exit 1
+source "$(dirname "$0")/lib/game.sh" || exit 1
+scripts="${FRAMEWORK}/scripts"
+cd "${GAME_ROOT}" || exit 1
 log="/tmp/job-${job}.log"
 : > "${log}"
 out="art/jobs/${job}"
@@ -116,13 +117,13 @@ if git fetch -q origin "${branch}" >> "${log}" 2>&1; then
 	earlier="$(git rev-parse FETCH_HEAD)"
 fi
 git checkout -q -B "${branch}" "${base}" >> "${log}" 2>&1 || fail "resetting ${branch} to ${source}"
-if [ -n "${earlier}" ] && git cat-file -e "${earlier}:art/jobs" 2>/dev/null; then
+if [ -n "${earlier}" ] && git cat-file -e "${earlier}:./art/jobs" 2>/dev/null; then
 	git checkout "${earlier}" -- art/jobs >> "${log}" 2>&1 || fail "carrying over earlier job results"
 fi
 
 if ! command -v jq >/dev/null 2>&1 || ! command -v rg >/dev/null 2>&1; then
 	say "installing tools (scripts/cloud-setup.sh)"
-	bash scripts/cloud-setup.sh >> "${log}" 2>&1 || sudo bash scripts/cloud-setup.sh >> "${log}" 2>&1 || say "cloud setup failed; carrying on"
+	bash "${scripts}/cloud-setup.sh" >> "${log}" 2>&1 || sudo bash "${scripts}/cloud-setup.sh" >> "${log}" 2>&1 || say "cloud setup failed; carrying on"
 fi
 mkdir -p "${out}"
 
@@ -133,15 +134,15 @@ case "${kind}" in
 		index="${share%/*}"
 		chunks="art/models/${name}/chunks"
 		say "building ${name} shard ${share}"
-		timed assemble scripts/assemble-model.sh "${name}" || fail "assemble"
-		timed build scripts/build-model.sh "${name}" -- --chunks --shard "${share}" || fail "build"
+		timed assemble "${scripts}/assemble-model.sh" "${name}" || fail "assemble"
+		timed build "${scripts}/build-model.sh" "${name}" -- --chunks --shard "${share}" || fail "build"
 		listParts "art/models/${name}/${name}.glb" > "${out}/parts.txt" || fail "listing parts"
 		cp "${chunks}/${name}Chunks.luau" "${out}/" 2>> "${log}"
 		summary="${summary}parts: $(wc -l < "${out}/parts.txt")
 chunks: $(ls "${chunks}/${name}_S${index}_"*.glb 2>/dev/null | wc -l)
 "
 		if [ -n "${ROBLOX_API_KEY:-}" ] && [ -n "${ROBLOX_CREATOR_ID:-}" ]; then
-			timed upload scripts/upload-chunks.sh "${name}" || fail "upload"
+			timed upload "${scripts}/upload-chunks.sh" "${name}" || fail "upload"
 			cp "${chunks}/${name}AssetIds.txt" "${out}/"
 		else
 			summary="${summary}upload: skipped (ROBLOX_API_KEY or ROBLOX_CREATOR_ID not set)
@@ -151,8 +152,8 @@ chunks: $(ls "${chunks}/${name}_S${index}_"*.glb 2>/dev/null | wc -l)
 	model)
 		name="${1:?model job needs a model name}"
 		say "building ${name}"
-		[ -f "art/src/items/${name}.luau" ] || [ -d "art/src/bots/${name}" ] && { timed assemble scripts/assemble-model.sh "${name}" || fail "assemble"; }
-		timed build scripts/build-model.sh "${name}" || fail "build"
+		[ -f "art/src/items/${name}.luau" ] || [ -d "art/src/bots/${name}" ] && { timed assemble "${scripts}/assemble-model.sh" "${name}" || fail "assemble"; }
+		timed build "${scripts}/build-model.sh" "${name}" || fail "build"
 		listParts "art/models/${name}/${name}.glb" > "${out}/parts.txt" || fail "listing parts"
 		cp "art/models/${name}/preview.png" "${out}/" || fail "no preview.png"
 		summary="${summary}parts: $(wc -l < "${out}/parts.txt")

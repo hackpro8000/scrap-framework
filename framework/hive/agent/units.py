@@ -7,8 +7,8 @@ import shutil
 import subprocess
 import time
 
-from standby_agent.common import say
-from standby_agent.machine import kill_tree
+from agent.common import SCRIPTS, say
+from agent.machine import kill_tree
 
 
 class Units:
@@ -41,7 +41,7 @@ class Units:
 		work["checkout"] = False
 		log.close()
 		if ok:
-			code, output = self.run_process(work, ["scripts/standby-task.sh", self.layout, str(shard), str(count), out],
+			code, output = self.run_process(work, [os.path.join(SCRIPTS, "standby-task.sh"), self.layout, str(shard), str(count), out],
 				stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
 			say(f"task {identity} S{shard}: {output.strip()}")
 		else:

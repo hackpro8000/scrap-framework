@@ -12,11 +12,11 @@ import subprocess
 import sys
 import time
 
-from standby_agent import machine
-from standby_agent.common import ROOT, alert, say
+from agent import machine
+from agent.common import ROOT, SCRIPTS, alert, say
 
 SHA = re.compile(r"[0-9a-f]{40}")
-SCRIPT = os.path.join(ROOT, "scripts", "standby-agent.py")
+SCRIPT = os.path.join(SCRIPTS, "standby-agent.py")
 
 
 def current_commit():

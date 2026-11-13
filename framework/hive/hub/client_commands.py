@@ -9,6 +9,7 @@ import wire
 from client_connection import alert, control
 from client_progress import SHORT_SECONDS, lifetime_alert
 from client_update import code_lines
+from hub_config import cache_dir
 
 
 async def status(url):
@@ -51,7 +52,7 @@ def status_alerts(answer):
 		and states.get(task, {}).get("age", STRANDED_AGE_SECONDS) >= STRANDED_AGE_SECONDS]
 	if stranded and not answer["up"]:
 		lines.append(f"ALERT STRANDED_TASK: {len(stranded)} open tasks ({' '.join(stranded)}) have queued units and no machine is connected "
-			"| start machines (they take the units as they connect), or clear them with: tools/coordinator/client.py clear-tasks")
+			"| start machines (they take the units as they connect), or clear them with: framework/hive/hub/client.py clear-tasks")
 	started = answer.get("run_started")
 	github_up = answer.get("github_up", 0)
 	if started and answer["count"] and now - started >= SHORT_SECONDS and github_up < answer["count"]:
@@ -117,7 +118,7 @@ def open_workers():
 def machine_tokens(first, last):
 	"""One line per numbered machine: m<n>, a tab, its lasting token, made
 	from the worker key on this computer (scripts/coordinator.sh worker-key)."""
-	path = os.path.expanduser("~/.cache/scrap-heist/worker-key")
+	path = os.path.join(cache_dir(), "worker-key")
 	if not os.path.isfile(path):
 		print("no worker key on this computer (scripts/coordinator.sh worker-key makes one)", file=sys.stderr)
 		return 1

@@ -5,14 +5,22 @@ import os
 import re
 import sys
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-REPOSITORY = "hackpro8000/scrap-heist"
+# The game's settings (framework/hive/game_settings.py) sit one folder up.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from game_settings import FRAMEWORK, GAME_ROOT, cache_dir, setting  # noqa: E402
+
+# Game files (art/, results, its git checkout) are under ROOT, the game's
+# folder; the framework's own scripts are under SCRIPTS.
+ROOT = str(GAME_ROOT)
+SCRIPTS = os.path.join(FRAMEWORK, "scripts")
+REPOSITORY = setting("repository")
+DEFAULT_LAYOUT = setting("default_layout")
 WORKFLOW = ".github/workflows/build-standby.yml"
 MAX_MESSAGE = 64 * 1024 * 1024
 # Control only ever receives small requests; the public port refuses big ones before admission.
 MAX_CONTROL_MESSAGE = 64 * 1024
 MAX_SIGNATURE = 4096
-STATE = os.path.expanduser("~/.cache/scrap-heist/coordinator.json")
+STATE = os.path.join(cache_dir(), "coordinator.json")
 # Posted tasks not yet completed, reloaded when a coordinator restarts.
 TASKS = os.path.join(os.path.dirname(STATE), "tasks.json")
 # Finished tasks a reconnecting session can still ask for (watch-task).
@@ -23,7 +31,7 @@ LINK_RESULTS = "build-results/coordinator"
 LINK_INTERVAL = 3
 # --control-key: a control connection counts only once the session has
 # signed a fresh nonce with its key (scripts/coordinator.sh key).
-CONTROL_NAMESPACE = "scrap-heist-control"
+CONTROL_NAMESPACE = f"{setting('name')}-control"
 CHALLENGE_SECONDS = 30
 TAILNET = ipaddress.ip_network("100.64.0.0/10")
 # What a machine may name: a model folder, and a task folder.

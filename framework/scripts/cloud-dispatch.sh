@@ -2,21 +2,21 @@
 # Posts a map build for Claude cloud machines that need no prompt: one
 # branch per shard, cloud-task/<task>/s<i>, each a commit on top of the
 # build's commit whose message names its shard. A session created in the
-# scrap-map-build environment on that branch builds the shard as it starts
+# game's cloud environment (cloud_environment in game.toml) on that branch builds the shard as it starts
 # (scripts/cloud-task.sh) and pushes cloud-results/<task>/s<i>;
 # scripts/cloud-results.sh collects them.
 #
 #   scripts/cloud-dispatch.sh <task> <count> [commit, default: the working
 #                                             tree, pushed with push-wip.sh]
-#                             [layout, default ServerMap]
+#                             [layout, default: the game's default_layout]
 set -euo pipefail
 
+source "$(dirname "$0")/lib/game.sh"
 task="${1:?task name required}"
 count="${2:?shard count required}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}"
-commit="${3:-$(scripts/push-wip.sh wip/cloud-task)}"
-layout="${4:-ServerMap}"
+cd "${GAME_ROOT}"
+commit="${3:-$("${FRAMEWORK}/scripts/push-wip.sh" wip/cloud-task)}"
+layout="${4:-$(game_setting default_layout)}"
 commit="$(git rev-parse --verify "${commit}^{commit}")"
 tree="$(git rev-parse "${commit}^{tree}")"
 

@@ -20,6 +20,7 @@
 
 set -uo pipefail
 
+source "$(dirname "$0")/lib/game.sh"
 layout="${1:?layout required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
@@ -62,7 +63,7 @@ run_task() {
 	mkdir -p "${out}"
 	say "task ${id}: checking out ${ref}"
 	if git fetch -q --depth=1 origin "${ref}" > "${out}/build.log" 2>&1 && git checkout -q -f FETCH_HEAD >> "${out}/build.log" 2>&1; then
-		result="$(scripts/standby-task.sh "${layout}" "${index}" "${count}" "${out}")"
+		result="$("${FRAMEWORK}/scripts/standby-task.sh" "${layout}" "${index}" "${count}" "${out}")"
 	else
 		{ echo "status=FAILED"; echo "build=-"; echo "upload=-"; echo "total=0"; echo "parts=0"; } > "${out}/summary.txt"
 		tail -n 30 "${out}/build.log" > "${out}/error.txt"

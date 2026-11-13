@@ -18,14 +18,14 @@ commit="${1:?commit required}"
 upload="${2:-no}"
 poll="${POLL:-1}"
 stall="${STALL:-180}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}"
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
 
 log="$(mktemp -t watch-build.XXXXXX)"
 started=${SECONDS}
 before="$(ls -t .standby-results 2> /dev/null | head -n 1)"
 
-PYTHONUNBUFFERED=1 scripts/send-build.sh "${commit}" auto 1800 "${upload}" > "${log}" 2>&1 &
+PYTHONUNBUFFERED=1 "${FRAMEWORK}/scripts/send-build.sh" "${commit}" auto 1800 "${upload}" > "${log}" 2>&1 &
 client=$!
 
 # Events: send-build's lines worth acting on, the moment they're written;

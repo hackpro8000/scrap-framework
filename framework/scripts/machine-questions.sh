@@ -14,7 +14,8 @@ if [ "${1:-}" = "--new" ]; then
 	shift
 fi
 every="${1:-30}"
-cd "$(dirname "$0")/.."
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
 seen=""
 first=yes
 while true; do

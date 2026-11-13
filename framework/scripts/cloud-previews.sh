@@ -13,8 +13,8 @@ set -euo pipefail
 task="${1:?task name required}"
 count="${2:?machine count required}"
 wait_seconds="${3:-600}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}"
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
 started="${SECONDS}"
 
 while true; do
@@ -38,7 +38,9 @@ for index in $(seq 1 "${count}"); do
 		continue
 	fi
 	mkdir -p "${scratch}/${index}"
-	git archive FETCH_HEAD "cloud-results/P${index}" | tar -x -C "${scratch}/${index}" --strip-components=2
+	# The game's own cloud-results/, wherever the game sits in the repository
+	# (archived from the top: from a subfolder git would filter the tree by it).
+	git -C "$(git rev-parse --show-toplevel)" archive "FETCH_HEAD:$(git rev-parse --show-prefix)cloud-results/P${index}" | tar -x -C "${scratch}/${index}"
 	for source in "${scratch}/${index}"/previews/*/; do
 		[ -d "${source}" ] || continue
 		name="$(basename "${source}")"

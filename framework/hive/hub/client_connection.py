@@ -10,11 +10,10 @@ import time
 
 import websockets
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-STATE =os.path.expanduser("~/.cache/scrap-heist/coordinator.json")
+from hub_config import CONTROL_NAMESPACE, ROOT, SCRIPTS, STATE, cache_dir
+
 # Made once by scripts/coordinator.sh key; never leaves this computer.
-CONTROL_KEY = os.path.expanduser("~/.cache/scrap-heist/control-key")
-CONTROL_NAMESPACE = "scrap-heist-control"
+CONTROL_KEY = os.path.join(cache_dir(), "control-key")
 MAX_MESSAGE = 64 * 1024 * 1024
 
 

@@ -7,8 +7,8 @@ import time
 
 import websockets
 
-from standby_agent.common import HEARTBEAT_SECONDS, PART_BYTES
-from standby_agent.machine import free_space, last_line, newest_log
+from agent.common import HEARTBEAT_SECONDS, PART_BYTES
+from agent.machine import free_space, last_line, newest_log
 import wire  # noqa: E402
 
 

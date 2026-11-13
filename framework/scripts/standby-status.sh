@@ -9,8 +9,8 @@
 
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}"
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
 
 # The newest standby run that's still going; its title carries its settings
 # (run-name in build-standby.yml).
@@ -30,6 +30,8 @@ fi
 layout="$(sed -n 's/^Standby \([^ ]*\) x.*/\1/p' <<< "${title}")"
 shards="$(sed -n 's/^Standby [^ ]* x\([0-9]*\) .*/\1/p' <<< "${title}")"
 ref="$(sed -n 's/.* from \([^ ]*\) (.*/\1/p' <<< "${title}")"
+# A run started without a layout builds the game's default_layout (build-standby.yml).
+[ "${layout}" != "default" ] || layout="$(game_setting default_layout)"
 [ -n "${layout}" ] && [ -n "${shards}" ] || { echo "standby run ${id} has an unexpected title: ${title}" >&2; exit 1; }
 
 # Machines push ready-<run id> to their results branch once they're waiting.

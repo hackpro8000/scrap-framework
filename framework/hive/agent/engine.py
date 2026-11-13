@@ -13,7 +13,8 @@ import shutil
 import subprocess
 import time
 
-from standby_agent.update import SHA
+from agent.common import SCRIPTS
+from agent.update import SHA
 
 TAIL_LINES = 200
 BATCH_LINES = 50
@@ -86,7 +87,7 @@ class EngineUnits:
 		# Not as a shard: a shard other than 1 would wait for machine 1's engine.
 		environment.pop("SHARD", None)
 		environment.pop("MODELKIT_NO_COMPILE", None)
-		process = subprocess.Popen(["scripts/build-model.sh", "--engine"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+		process = subprocess.Popen([os.path.join(SCRIPTS, "build-model.sh"), "--engine"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
 			text=True, errors="replace", env=environment, start_new_session=True)
 		work["processes"].add(process)
 		tail, batch, sent = collections.deque(maxlen=TAIL_LINES), [], time.monotonic()

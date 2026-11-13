@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """Talks to the running coordinator (coordinator.py) from this session.
 
-  tools/coordinator/client.py status          # the run, the roster by name, queued units per task
-  tools/coordinator/client.py machines        # what each machine is doing now
-  tools/coordinator/client.py build <commit> [--no-upload] [--wait S] [--preview A,B] [--preview-only] [--units N]
-  tools/coordinator/client.py stop-machines   # standby machines end now
-  tools/coordinator/client.py clear-tasks     # drop open tasks (after ALERT STRANDED_TASK)
-  tools/coordinator/client.py mint-workers <count>
-  tools/coordinator/client.py open-workers    # no longer needed: says so and does nothing
-  tools/coordinator/client.py numbered        # the numbers of the numbered machines connected, one line
-  tools/coordinator/client.py machine-tokens <first> <last>  # no coordinator needed
+  framework/hive/hub/client.py status          # the run, the roster by name, queued units per task
+  framework/hive/hub/client.py machines        # what each machine is doing now
+  framework/hive/hub/client.py build <commit> [--no-upload] [--wait S] [--preview A,B] [--preview-only] [--units N]
+  framework/hive/hub/client.py stop-machines   # standby machines end now
+  framework/hive/hub/client.py clear-tasks     # drop open tasks (after ALERT STRANDED_TASK)
+  framework/hive/hub/client.py mint-workers <count>
+  framework/hive/hub/client.py open-workers    # no longer needed: says so and does nothing
+  framework/hive/hub/client.py numbered        # the numbers of the numbered machines connected, one line
+  framework/hive/hub/client.py machine-tokens <first> <last>  # no coordinator needed
                                               # tokens for a new pool of workers
                                               # (scripts/cloud-worker.sh), one
                                               # line each: <shard> <count> <token>
-  tools/coordinator/client.py wait-machines [N] [--wait S]
+  framework/hive/hub/client.py wait-machines [N] [--wait S]
                                               # returns once N machines are up
                                               # (default: all of the run)
-  tools/coordinator/client.py update <full sha> [--force] [--wait S]
+  framework/hive/hub/client.py update <full sha> [--force] [--wait S]
                                               # hot update: the hub and every machine
                                               # move to that commit (default wait 180 s)
-  tools/coordinator/client.py engine <full sha> [--wait S]
+  framework/hive/hub/client.py engine <full sha> [--wait S]
                                               # compile the engine on one machine with
                                               # cargo; exits 1 on a failed compile
 
@@ -32,7 +32,7 @@ docs/plans/multi-machine.md, Alerts.
 `build` posts a task, which the hub cuts into units (one per machine
 connected, or --units N) and leases to machines as they come free
 (docs/plans/multi-machine.md, Pull queue). Preview shares are sized by each
-model's measured machine-seconds, kept in ~/.cache/scrap-heist/preview-seconds.json
+model's measured machine-seconds, kept in the game's cache folder (preview-seconds.json)
 and updated after every task. It prints each unit's result (S<i>, with the
 machine that built it) the moment it arrives, and ALERT REDEALT when the
 hub takes a unit back from a machine and gives it to another, then the upload's, and exits 0 when every machine built and every

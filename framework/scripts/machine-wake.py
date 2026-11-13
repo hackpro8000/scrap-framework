@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Wakes numbered cloud build machines that were paused, so each starts its
 worker again and rejoins the hub: one comment, "order: wake", on each
-machine's wake-up pull request (~/.cache/scrap-heist/prs.tsv: machine, pull
-request number). Each session is subscribed to its own pull request and
+machine's wake-up pull request (prs.tsv in the game's cache folder: machine,
+pull request number). Each session is subscribed to its own pull request and
 holds a standing instruction to rejoin on that comment
 (scripts/machine-prompt.py sent both).
 
@@ -20,8 +20,12 @@ import subprocess
 import sys
 import time
 
-PULL_REQUESTS = os.path.expanduser("~/.cache/scrap-heist/prs.tsv")
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hive"))
+from game_settings import FRAMEWORK, GAME_ROOT, cache_dir  # noqa: E402
+
+PULL_REQUESTS = os.path.join(cache_dir(), "prs.tsv")
+ROOT = str(GAME_ROOT)
+CLIENT = os.path.join(FRAMEWORK, "hive", "hub", "client.py")
 GROUP = 70
 BATCH = 10
 
@@ -57,7 +61,7 @@ def main():
 	if arguments.machines:
 		wanted = sorted(parse_machines(arguments.machines))
 	else:
-		connected = subprocess.run([sys.executable, "tools/coordinator/client.py", "numbered"], capture_output=True, text=True, cwd=ROOT)
+		connected = subprocess.run([sys.executable, CLIENT, "numbered"], capture_output=True, text=True, cwd=ROOT)
 		if connected.returncode != 0:
 			sys.exit("could not ask the hub who is connected: " + connected.stderr.strip()[-200:])
 		on_hub = {int(number) for number in connected.stdout.split()}

@@ -9,6 +9,8 @@ host_prefix = "mygame"
 cloud_environment = ""
 # Models an engine proof on the build machines bakes, one per machine (space-separated).
 sample_models = ""
+# Models scripts/pipeline-try.sh previews when given no --models (comma-separated).
+try_models = ""
 
 # A character is a capsule this many studs across and tall; the camera sits
 # this high. Reviews and checks size walkways and views against them.

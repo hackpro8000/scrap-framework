@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts, stops or reports the build coordinator (tools/coordinator/) in
+# Starts, stops or reports the build coordinator (framework/hive/hub/) in
 # this session, with an address the standby machines can reach.
 #
 #   scripts/coordinator.sh start [tailscale|cloudflare|auto] [--dry-upload]
@@ -24,19 +24,21 @@
 # an https address made by an outbound connection only. auto takes tailscale
 # when this session is on a tailnet and the repo has TS_AUTHKEY, else
 # cloudflare. Either way a machine is let in only with GitHub's identity
-# token for this repo's standby workflow (tools/coordinator/oidc.py).
+# token for this repo's standby workflow (framework/hive/hub/oidc.py).
 #
 # Uploads run here when this session has the Roblox key (ROBLOX_API_KEY, or
-# ~/.config/scrap-heist/roblox-api-key); without it, build machine 1 does
+# roblox-api-key in the game's config folder) and ROBLOX_CREATOR_ID; without
+# them, build machine 1 does
 # them with the repo's ROBLOX_API_KEY secret, still over the live
 # connections. If this session can't connect out at all, start standby with
 # scripts/standby-start.sh --on-machine.
 
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-state="${HOME}/.cache/scrap-heist/coordinator.json"
-logs="${HOME}/.cache/scrap-heist"
+source "$(dirname "$0")/lib/game.sh"
+hub="${FRAMEWORK}/hive/hub"
+logs="$(game_cache_dir)"
+state="${logs}/coordinator.json"
 agent_port=8765
 mkdir -p "${logs}"
 
@@ -63,9 +65,9 @@ attach() {
 	fi
 	address="$(gh api -H "Accept: application/vnd.github.raw" \
 		"repos/{owner}/{repo}/contents/address.json?ref=build-results/coordinator-address" 2> /dev/null || true)"
-	python3 - "${state}" "${1:-}" "${address}" << 'PY'
+	python3 - "${state}" "${1:-}" "${address}" "$(game_setting host_prefix)" << 'PY'
 import json, sys
-path, run, address = sys.argv[1:]
+path, run, address, host_prefix = sys.argv[1:]
 try:
 	address = json.loads(address)
 except ValueError:
@@ -74,7 +76,7 @@ if address.get("control") and (not run or str(address.get("run")) == run):
 	run = str(address["run"])
 	state = {"remote": True, "control": address["control"], "agent_url": address["agent"], "route": "machine-1 over cloudflare"}
 elif run:
-	state = {"remote": True, "control": f"ws://scrap-coordinator-{run}:8766", "agent_url": "machine-1", "route": "machine-1 over tailscale"}
+	state = {"remote": True, "control": f"ws://{host_prefix}-coordinator-{run}:8766", "agent_url": "machine-1", "route": "machine-1 over tailscale"}
 else:
 	sys.exit("no address published by machine 1 yet; give the run id to attach over the tailnet")
 json.dump(state, open(path, "w"))
@@ -85,7 +87,7 @@ PY
 key() {
 	local key="${logs}/control-key"
 	if [ ! -f "${key}" ]; then
-		ssh-keygen -q -t ed25519 -N "" -C scrap-heist-control -f "${key}" < /dev/null
+		ssh-keygen -q -t ed25519 -N "" -C "$(game_setting name)-control" -f "${key}" < /dev/null
 		echo "made ${key}; it never leaves this computer" >&2
 	fi
 	cat "${key}.pub"
@@ -130,9 +132,9 @@ start() {
 	local route dry="" host="127.0.0.1" url
 	route="$(route_for "${1:-auto}")"
 	[ "${2:-}" = "--dry-upload" ] && dry="--dry-upload"
-	if [ -z "${dry}" ] && [ -z "${ROBLOX_API_KEY:-}" ] && [ ! -f "${HOME}/.config/scrap-heist/roblox-api-key" ]; then
+	if [ -z "${dry}" ] && { [ -z "${ROBLOX_CREATOR_ID:-}" ] || { [ -z "${ROBLOX_API_KEY:-}" ] && [ ! -f "$(game_config_dir)/roblox-api-key" ]; }; }; then
 		dry="--uploads-on-machine"
-		echo "no Roblox key in this session: build machine 1 will upload with the repo's secret" >&2
+		echo "no Roblox key or ROBLOX_CREATOR_ID in this session: build machine 1 will upload with the repo's secrets" >&2
 	fi
 	if running; then
 		echo "coordinator already running: $(json agent_url)" >&2
@@ -143,8 +145,8 @@ start() {
 		cloudflare) ;;
 		*) echo "no route out of this session: start standby without a coordinator" >&2; return 1 ;;
 	esac
-	cd "${root}"
-	nohup setsid python3 tools/coordinator/coordinator.py serve --agent-host "${host}" --agent-port "${agent_port}" ${dry} \
+	cd "${GAME_ROOT}"
+	nohup setsid python3 "${hub}/coordinator.py" serve --agent-host "${host}" --agent-port "${agent_port}" ${dry} \
 		> "${logs}/coordinator.log" 2>&1 < /dev/null &
 	for _ in $(seq 1 50); do
 		grep -q "machines on" "${logs}/coordinator.log" 2> /dev/null && break
@@ -174,7 +176,7 @@ stop() {
 	# Machines first: left running they'd hold all the account's machine
 	# slots, and a new standby run would wait in GitHub's queue behind them.
 	if running; then
-		python3 "${root}/tools/coordinator/client.py" stop-machines > /dev/null 2>&1 && echo "told the machines to stop" >&2 || true
+		python3 "${hub}/client.py" stop-machines > /dev/null 2>&1 && echo "told the machines to stop" >&2 || true
 	fi
 	# Machine 1 runs a remote coordinator: nothing here to kill.
 	if remote; then
@@ -203,11 +205,11 @@ case "${1:-status}" in
 	status)
 		if running; then
 			echo "coordinator up over $(json route): $(json agent_url)"
-			python3 "${root}/tools/coordinator/client.py" status || true
+			python3 "${hub}/client.py" status || true
 		else
 			echo "no coordinator running"
 		fi
 		;;
-	machines) python3 "${root}/tools/coordinator/client.py" machines ;;
+	machines) python3 "${hub}/client.py" machines ;;
 	*) sed -n '2,26p' "$0" >&2; exit 1 ;;
 esac

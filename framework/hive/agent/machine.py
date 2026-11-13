@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import urllib.request
 
-from standby_agent.common import AUDIENCE, LOG_LINES_KEPT, ROOT, say
+from agent.common import AUDIENCE, LOG_LINES_KEPT, ROOT, SCRIPTS, say
 
 
 def http_status(error):
@@ -45,7 +45,7 @@ def ensure_tools():
 	from main but this agent from the pushed work in progress, and a machine
 	that can't reach a release still takes tasks (session() names what's missing)."""
 	os.environ["PATH"] = os.path.expanduser("~/.local/bin") + os.pathsep + os.environ["PATH"]
-	subprocess.run([os.path.join(ROOT, "scripts/ensure-tools.sh")], capture_output=True)
+	subprocess.run([os.path.join(SCRIPTS, "ensure-tools.sh")], capture_output=True)
 
 
 def trim_log(path):
@@ -62,7 +62,7 @@ def trim_log(path):
 
 def push_bakes(model, share, out, since):
 	"""Pushes the paint layers saved since `since`; returns the commit, or ""."""
-	cache = os.path.join("art", "models", model, ".cache")
+	cache = os.path.join(ROOT, "art", "models", model, ".cache")
 	fresh = tempfile.mkdtemp(dir=out)
 	try:
 		for entry in os.scandir(cache) if os.path.isdir(cache) else []:
@@ -71,7 +71,7 @@ def push_bakes(model, share, out, since):
 		if not os.listdir(fresh):
 			return ""
 		branch = "build-bakes/" + share.replace("@", "-")
-		pushed = subprocess.run(["scripts/push-folder.sh", fresh, branch, f"bakes {share}"], capture_output=True, text=True)
+		pushed = subprocess.run([os.path.join(SCRIPTS, "push-folder.sh"), fresh, branch, f"bakes {share}"], capture_output=True, text=True)
 		if pushed.returncode != 0 and "cannot lock ref" in pushed.stderr and "reference already exists" in pushed.stderr:
 			# Another machine saved the same bake first: theirs serves as ours.
 			say(f"bakes of {share} already saved by another machine; taking theirs")
@@ -87,7 +87,7 @@ def push_bakes(model, share, out, since):
 def push_preview(folder, share):
 	"""The commit holding a finished preview's files, or "" if the push failed."""
 	branch = "preview-results/" + share.replace("@", "-")
-	pushed = subprocess.run(["scripts/push-folder.sh", folder, branch, f"preview {share}"], capture_output=True, text=True)
+	pushed = subprocess.run([os.path.join(SCRIPTS, "push-folder.sh"), folder, branch, f"preview {share}"], capture_output=True, text=True)
 	if pushed.returncode != 0:
 		say(f"could not push preview {share}: {pushed.stderr.strip()[-200:]}")
 		return ""

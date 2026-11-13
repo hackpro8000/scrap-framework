@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Cloud environment setup for Scrap Heist.
+# Cloud environment setup for a game on this framework.
 #
 # Paste this into the cloud environment's "Setup script" setting, or run it
-# with `bash scripts/cloud-setup.sh`. It runs as root on Ubuntu when a new
+# with `bash framework/scripts/cloud-setup.sh`. It runs as root on Ubuntu when a new
 # session starts, and is safe to run more than once.
 
 set -euo pipefail

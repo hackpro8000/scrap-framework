@@ -3,10 +3,10 @@
 # for the coordinator, as the standby workflow's steps before "Wait for
 # tasks" make a GitHub machine one, then runs scripts/standby-agent.py. It
 # needs no GitHub secrets and does no uploads; it is admitted by a token
-# from `tools/coordinator/client.py mint-workers <count>`. Safe to run
+# from `framework/hive/hub/client.py mint-workers <count>`. Safe to run
 # again: whatever is already there is left alone.
 #
-#   scripts/cloud-worker.sh [--detach] <agent address> <shard> <count> <token> [layout, default ServerMap]
+#   scripts/cloud-worker.sh [--detach] <agent address> <shard> <count> <token> [layout, default: the game's]
 #   scripts/cloud-worker.sh join [<machine number> <token>]
 #   scripts/cloud-worker.sh --wait [seconds]
 #
@@ -15,7 +15,7 @@
 # most, which is as long as a hub lives.
 #
 # join makes this a numbered machine, for good: its number and lasting token
-# (tools/coordinator/client.py machine-tokens) are saved in the clone's .git
+# (framework/hive/hub/client.py machine-tokens) are saved in the clone's .git
 # folder, and a worker starts in the background that finds the coordinator's
 # address by itself (the "published" address of scripts/standby-agent.py) and
 # follows it when it changes. It takes units from the hub's queue as soon as
@@ -25,9 +25,11 @@ set -euo pipefail
 
 usage() { awk 'NR >= 9 && NR <= 22' "$0" | cut -c3-; }
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then usage; exit 0; fi
+source "$(dirname "$0")/lib/game.sh"
+name="$(game_setting name)"
 if [ "${1:-}" = "join" ]; then
-	cd "$(dirname "$0")/.."
-	seat="$(git rev-parse --absolute-git-dir)/scrap-worker"
+	cd "${GAME_ROOT}"
+	seat="$(git rev-parse --absolute-git-dir)/${name}-worker"
 	if [ $# -ge 3 ]; then
 		case "$2" in ''|*[!0-9]*) echo "cloud-worker: the machine number must be a whole number" >&2; exit 2;; esac
 		(umask 077; printf '%s %s\n' "$2" "$3" > "$seat")
@@ -44,10 +46,11 @@ if [ "${1:-}" = "join" ]; then
 	# A full disk stops the worker before it can build anything. A snapshot
 	# holding the file .cold-build empties the caches too, for a cold timing.
 	if [ -f .cold-build ] || [ "$(df --output=avail -BG . | tail -n 1 | tr -dc 0-9)" -lt 8 ]; then
-		rm -rf art/models/*/.cache "$(git rev-parse --absolute-git-dir)"/scrap-lanes/*/art/models/*/.cache results
+		# A lane's game sits in its worktree where it sits in the checkout (scripts/standby-task.sh).
+		rm -rf art/models/*/.cache "$(git rev-parse --absolute-git-dir)/${name}-lanes"/*"${GAME_ROOT#"$(git rev-parse --show-toplevel)"}"/art/models/*/.cache results
 	fi
 	export COORDINATOR_WORKER_TOKEN="$token"
-	nohup setsid scripts/cloud-worker.sh published "$machine" 0 - > /tmp/cloud-worker.log 2>&1 < /dev/null &
+	nohup setsid "${FRAMEWORK}/scripts/cloud-worker.sh" published "$machine" 0 - > /tmp/cloud-worker.log 2>&1 < /dev/null &
 	echo $! > /tmp/cloud-worker.pid
 	echo "cloud-worker: started in the background as machine $machine (log: /tmp/cloud-worker.log)"
 	exit 0
@@ -58,7 +61,7 @@ if [ "${1:-}" = "--detach" ]; then
 	shift
 	[ $# -ge 4 ] || { usage >&2; exit 2; }
 	[ "$4" = "-" ] || export COORDINATOR_WORKER_TOKEN="$4"
-	nohup setsid "$0" "$1" "$2" "$3" - "${5:-ServerMap}" > /tmp/cloud-worker.log 2>&1 < /dev/null &
+	nohup setsid "$0" "$1" "$2" "$3" - "${5:-$(game_setting default_layout)}" > /tmp/cloud-worker.log 2>&1 < /dev/null &
 	echo $! > /tmp/cloud-worker.pid
 	echo "cloud-worker: started in the background as shard $2 of $3 (log: /tmp/cloud-worker.log)"
 	exit 0
@@ -79,7 +82,7 @@ if [ "${1:-}" = "--wait" ]; then
 	exit 0
 fi
 [ $# -ge 4 ] || { usage >&2; exit 2; }
-address="$1" shard="$2" count="$3" layout="${5:-ServerMap}"
+address="$1" shard="$2" count="$3" layout="${5:-$(game_setting default_layout)}"
 if [ "$4" = "-" ]; then
 	token="${COORDINATOR_WORKER_TOKEN:-}"
 else
@@ -92,11 +95,10 @@ case "$count" in ''|*[!0-9]*) echo "cloud-worker: count must be a whole number" 
 # is leased one unit at a time, each naming its own shard and count.
 [ "$((10#$count))" -eq 0 ] || { [ "$((10#$shard))" -ge 1 ] && [ "$((10#$shard))" -le "$((10#$count))" ]; } || { echo "cloud-worker: shard must be from 1 to count" >&2; exit 2; }
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$root"
+cd "${GAME_ROOT}"
 
 # Tools, toolchain and the websocket library (scripts/machine-setup/).
-scripts/machine-setup/map-build.sh
+"${FRAMEWORK}/scripts/machine-setup/map-build.sh"
 export PATH="$HOME/.local/bin:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
@@ -109,6 +111,6 @@ export MODELKIT_SHARE_ENGINE=1
 export COORDINATOR_WORKER_TOKEN="$token"
 unset token
 if [ "$address" = "published" ]; then
-	exec python3 scripts/standby-agent.py "$address" "$layout" "$shard" "$count" 720 720
+	exec python3 "${FRAMEWORK}/scripts/standby-agent.py" "$address" "$layout" "$shard" "$count" 720 720
 fi
-exec python3 scripts/standby-agent.py "$address" "$layout" "$shard" "$count" 60 300
+exec python3 "${FRAMEWORK}/scripts/standby-agent.py" "$address" "$layout" "$shard" "$count" 60 300

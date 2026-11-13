@@ -8,7 +8,7 @@ import tempfile
 import time
 
 import wire
-from hub_config import KEEP_FINISHED, LINK_INTERVAL, LINK_RESULTS, MAX_WORKERS, ROOT, TASK_NAME, say
+from hub_config import KEEP_FINISHED, LINK_INTERVAL, LINK_RESULTS, MAX_WORKERS, ROOT, SCRIPTS, TASK_NAME, say
 from units import Task
 
 
@@ -183,7 +183,7 @@ class TaskBook:
 		and returns the asset ids that are new, which need the game's
 		permission; or the merge's error."""
 		shards = sorted(os.path.join(task.out, name) for name in os.listdir(task.out) if name.startswith("S"))
-		result = subprocess.run(["scripts/merge-shards.sh", self.layout, *shards], cwd=ROOT, capture_output=True, text=True)
+		result = subprocess.run([os.path.join(SCRIPTS, "merge-shards.sh"), self.layout, *shards], cwd=ROOT, capture_output=True, text=True)
 		if result.returncode != 0:
 			say(f"task {task.id}: merge failed: {result.stderr.strip()[-300:]}")
 			return {"error": result.stderr.strip()[-300:]}
@@ -218,7 +218,7 @@ class TaskBook:
 				fetched = await asyncio.to_thread(self.git, "fetch", "-q", "--depth=1", "origin", head)
 				if fetched.returncode == 0:
 					seen = head
-					files = (await asyncio.to_thread(self.git, "ls-tree", "--name-only", head, "tasks/")).stdout.split()
+					files = (await asyncio.to_thread(self.git, "ls-tree", "--full-tree", "--name-only", head, "tasks/")).stdout.split()
 					for name in sorted(files):
 						identity = os.path.basename(name)[:-4]
 						posted = identity[1:].split("-")[0]

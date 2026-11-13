@@ -4,14 +4,14 @@ moment they're posted, takes their results back the moment they're done,
 and uploads their new objects as they arrive, all over live connections,
 so nothing polls.
 
-  tools/coordinator/coordinator.py serve [--dry-upload] [--agent-host H]
+  framework/hive/hub/coordinator.py serve [--dry-upload] [--agent-host H]
                                          [--agent-port P] [--control-port C]
                                          [--control-host H] [--control-key K]
 
 Machines (scripts/standby-agent.py) connect to the agent port, proving with
 GitHub's identity token that they are this repo's standby machines (oidc.py),
 and keep the connection open. The session talks to the control port, which
-listens on this machine only (tools/coordinator/client.py). Both carry JSON
+listens on this machine only (framework/hive/hub/client.py). Both carry JSON
 messages; a file is one binary message, its description and bytes together
 (wire.py). Everything the machines report, their log lines included, is
 written to the coordinator's log and passed on to the session as it happens.
@@ -87,12 +87,13 @@ import time
 import websockets
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import uploader as uploading  # noqa: E402
+# hub_config first: it puts the game's settings (game_settings.py) on the path.
 from hub_config import (  # noqa: E402,F401
-	CHALLENGE_SECONDS, COMMIT, CONTROL_NAMESPACE, GONE_FORGOTTEN_SECONDS, KEEP_FINISHED, LEASE_GRACE_SECONDS,
+	CHALLENGE_SECONDS, COMMIT, CONTROL_NAMESPACE, DEFAULT_LAYOUT, GONE_FORGOTTEN_SECONDS, KEEP_FINISHED, LEASE_GRACE_SECONDS,
 	LEASE_SILENT_SECONDS, LEASE_WEDGED_SECONDS, LINK_INTERVAL, LINK_RESULTS, MAX_CONTROL_MESSAGE, MAX_MESSAGE,
 	MAX_SHARD_BYTES, MAX_SHARD_FILES, MAX_SIGNATURE, MAX_WORKERS, MODEL_NAME, REPOSITORY, RESULTS, ROOT, STATE,
 	TAILNET, TASK_NAME, TASKS, WORKER_PREFIX, WORKFLOW, say)
+import uploader as uploading  # noqa: E402
 from units import Lease, Machine, Task, share_out  # noqa: E402,F401
 from remote_uploader import RemoteUploader  # noqa: E402
 from hub_queue import LeaseQueue  # noqa: E402
@@ -108,7 +109,7 @@ class Coordinator(LeaseQueue, TaskBook, MachineLinks, PreviewJobs, SessionContro
 	def __init__(self, layout, dry, test_without_identity=False, git_link=False, uploads_on_machine=False, relay_results=False,
 			timeouts=None, worker_key=None, tasks_file=None, results=None):
 		self.layout = layout
-		# Tests point these elsewhere (tools/coordinator/test_queue.py).
+		# Tests point these elsewhere (framework/hive/hub/test_queue.py).
 		self.tasks_file = tasks_file or TASKS
 		self.results = results or RESULTS
 		timeouts = timeouts or {}
@@ -284,7 +285,7 @@ async def serve(arguments):
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("command", choices=["serve"])
-	parser.add_argument("--layout", default="ServerMap")
+	parser.add_argument("--layout", default=DEFAULT_LAYOUT)
 	parser.add_argument("--agent-host", default="127.0.0.1")
 	parser.add_argument("--agent-port", type=int, default=8765)
 	# Machine 1 puts control on its tailnet address so a session can attach.

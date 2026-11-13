@@ -5,17 +5,17 @@
 # It starts nothing and needs no secrets. Safe to run again: whatever is
 # already there is left alone.
 #
-#   scripts/machine-setup/map-build.sh
+#   framework/scripts/machine-setup/map-build.sh
 #
 # One script per purpose lives in this folder. A Claude cloud environment
 # for that purpose runs it from its setup script, so every session there
-# starts prepared:
+# starts prepared (<repo> is the game repository's folder name):
 #
-#   if [ -d scrap-heist ]; then scrap-heist/scripts/machine-setup/map-build.sh || echo "map-build setup failed"; fi
+#   if [ -d <repo> ]; then <repo>/framework/scripts/machine-setup/map-build.sh || echo "map-build setup failed"; fi
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/../.." && pwd)"
-cd "$root"
+source "$(dirname "$0")/../lib/game.sh"
+cd "${GAME_ROOT}"
 
 # A cloud session machine runs as root; a GitHub runner has passwordless sudo.
 if [ "$(id -u)" = "0" ]; then
@@ -41,7 +41,7 @@ if [ ${#packages[@]} -gt 0 ]; then
 fi
 
 # rg, sd and jq (pinned releases in ~/.local/bin).
-scripts/ensure-tools.sh
+"${FRAMEWORK}/scripts/ensure-tools.sh"
 export PATH="$HOME/.local/bin:$PATH"
 
 # Rust, for when the engine has to be compiled here (scripts/build-model.sh

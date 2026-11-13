@@ -21,10 +21,11 @@ task="${1:?task name required}"
 index="${2:?machine index required}"
 count="${3:?machine count required}"
 names="${4:?model names required}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
+source "$(dirname "$0")/lib/game.sh"
+root="${GAME_ROOT}"
 cd "${root}"
 
-scripts/machine-setup/map-build.sh || exit 1
+"${FRAMEWORK}/scripts/machine-setup/map-build.sh" || exit 1
 export PATH="${HOME}/.local/bin:${PATH}"
 [ -f "${HOME}/.cargo/env" ] && . "${HOME}/.cargo/env"
 # As the workflow sets for every machine.
@@ -35,7 +36,7 @@ out="${root}/cloud-results/P${index}"
 rm -rf "${out}"
 mkdir -p "${out}"
 started="${SECONDS}"
-scripts/standby-previews.sh "${names}" "${index}" "${count}" "${out}" > "${out}/previews.out" 2>&1
+"${FRAMEWORK}/scripts/standby-previews.sh" "${names}" "${index}" "${count}" "${out}" > "${out}/previews.out" 2>&1
 failed=0
 for dir in "${out}"/previews/*/; do
 	[ -d "${dir}" ] || continue
@@ -51,7 +52,7 @@ echo "seconds=$((SECONDS - started))" > "${out}/machine.txt"
 echo "machine ${index} of ${count}: previews done in $((SECONDS - started))s"
 
 git add -f "${out}"
-git -c user.name="scrap-heist cloud shard" -c user.email="cloud-shard@users.noreply.github.com" \
+git -c user.name="$(game_setting name) cloud shard" -c user.email="cloud-shard@users.noreply.github.com" \
 	commit -q -m "${task} previews ${index} of ${count}" || echo "cloud-preview: nothing to commit"
 for attempt in 1 2 3 4; do
 	if git push -q -f origin "HEAD:refs/heads/cloud-previews/${task}/s${index}"; then

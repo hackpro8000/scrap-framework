@@ -23,20 +23,25 @@ ref="${1:-main}"
 count="${2:-auto}"
 wait_seconds="${3:-300}"
 upload="${4:-yes}"
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${root}"
+source "$(dirname "$0")/lib/game.sh"
+cd "${GAME_ROOT}"
+scripts="${FRAMEWORK}/scripts"
+client="${FRAMEWORK}/hive/hub/client.py"
+# Results commits are archived from the top: from a subfolder (a game below
+# the top of its repository) git would keep only that subfolder's files.
+top="$(git rev-parse --show-toplevel)"
 
 # Models that changed since they were last checked must have no floating
 # pieces or broken surfaces (scripts/check-models.sh; CHECK=skip to build
 # anyway).
-if [ "${CHECK:-}" != "skip" ] && ! scripts/check-models.sh >&2; then
+if [ "${CHECK:-}" != "skip" ] && ! "${scripts}/check-models.sh" >&2; then
 	echo "a changed model failed its check; fix it, or build anyway with CHECK=skip" >&2
 	exit 1
 fi
 
 # A coordinator in this session hands the task to its machines live
-# (tools/coordinator/): no queue branch, no polling for results.
-if python3 tools/coordinator/client.py status > /dev/null 2>&1; then
+# (framework/hive/hub/): no queue branch, no polling for results.
+if python3 "${client}" status > /dev/null 2>&1; then
 	git fetch -q origin "${ref}" 2> /dev/null || true
 	commit="$(git rev-parse --verify -q "origin/${ref}^{commit}" || git rev-parse --verify "${ref}^{commit}")"
 	flags=(--wait "${wait_seconds}")
@@ -50,7 +55,7 @@ if python3 tools/coordinator/client.py status > /dev/null 2>&1; then
 	if [ -z "${previews}" ] || [ "${previews}" = "all" ]; then
 		every="${previews}"
 		previews=""
-		for name in $(head -n 1 art/src/layouts/ServerMap.luau | sed 's/^-- uses://'); do
+		for name in $(head -n 1 "art/src/layouts/$(game_setting default_layout).luau" | sed 's/^-- uses://'); do
 			script="art/models/${name}/model.luau"
 			[ -f "${script}" ] || continue
 			if [ "${every}" = "all" ] || [ "$(cat "art/models/${name}/previewed.txt" 2> /dev/null)" != "$(sha1sum "${script}" | cut -c1-16)" ]; then
@@ -61,7 +66,7 @@ if python3 tools/coordinator/client.py status > /dev/null 2>&1; then
 	[ -n "${previews}" ] && [ "${previews}" != "-" ] && flags+=(--preview "${previews}")
 	# PREVIEW_ONLY=1: the machines skip the layout build and only render.
 	[ "${PREVIEW_ONLY:-}" = "1" ] && flags+=(--preview-only)
-	exec python3 tools/coordinator/client.py build "${commit}" "${flags[@]}"
+	exec python3 "${client}" build "${commit}" "${flags[@]}"
 fi
 
 # Machine 1 runs the coordinator (scripts/standby-start.sh --on-machine): the
@@ -69,13 +74,13 @@ fi
 # come back as one commit on build-results/coordinator, checked for every
 # LINK_SECONDS. The only polling left, for a session that can't connect out.
 LINK_SECONDS=10
-if [ "${count}" = "auto" ] && scripts/standby-status.sh --line 2> /dev/null | grep -q "on-machine=yes"; then
+if [ "${count}" = "auto" ] && "${scripts}/standby-status.sh" --line 2> /dev/null | grep -q "on-machine=yes"; then
 	on_machine=yes
 fi
 
 if [ "${count}" = "auto" ]; then
-	if ! status="$(scripts/standby-status.sh --line)"; then
-		scripts/standby-status.sh >&2 || true
+	if ! status="$("${scripts}/standby-status.sh" --line)"; then
+		"${scripts}/standby-status.sh" >&2 || true
 		exit 1
 	fi
 	count="$(sed -n 's/.*shards=\([0-9]*\).*/\1/p' <<< "${status}")"
@@ -119,7 +124,7 @@ fetch_result() {
 	sha="$(git log -n 50 --format='%H %s' "origin/build-results/s${shard}" 2> /dev/null | awk -v want="task ${id} " 'index($0, want) == 42 { print $1; exit }' || true)"
 	[ -n "${sha}" ] || return 1
 	mkdir -p "${into}"
-	git archive "${sha}" | tar -x -C "${into}"
+	git -C "${top}" archive "${sha}" | tar -x -C "${into}"
 }
 
 # Starts with the time it was posted, which standby machines sort and filter by.
@@ -136,7 +141,7 @@ if [ "${on_machine:-}" = yes ]; then
 		sha="$(git log -n 50 --format='%H %s' origin/build-results/coordinator | awk -v want="task ${id}" '$2 " " $3 == want { print $1; exit }' || true)"
 		[ -n "${sha}" ] || continue
 		mkdir -p "${out}"
-		git archive "${sha}" | tar -x -C "${out}"
+		git -C "${top}" archive "${sha}" | tar -x -C "${out}"
 		for summary in "${out}"/S*/summary.txt; do
 			echo "$(basename "$(dirname "${summary}")"): $(tr '\n' ' ' < "${summary}")"
 		done

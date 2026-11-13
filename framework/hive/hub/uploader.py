@@ -26,8 +26,8 @@ turns it away.
 With dry=True nothing is sent: each upload waits a moment and returns a
 made-up asset id, and nothing is written to the record, for testing.
 
-Needs ROBLOX_API_KEY (or the file ~/.config/scrap-heist/roblox-api-key)
-and ROBLOX_CREATOR_ID unless dry.
+Needs ROBLOX_API_KEY (or the file roblox-api-key in the game's config
+folder, ~/.config/<name>) and ROBLOX_CREATOR_ID unless dry.
 """
 import json
 import os
@@ -39,6 +39,7 @@ import urllib.request
 import uuid
 
 import bundle
+from game_settings import config_dir, setting
 
 API = os.environ.get("ROBLOX_ASSETS_API", "https://apis.roblox.com/assets/v1")
 START = float(os.environ.get("UPLOAD_START", "32"))
@@ -46,8 +47,9 @@ MOST = int(os.environ.get("UPLOAD_MOST", "128"))
 TRIES = int(os.environ.get("UPLOAD_TRIES", "8"))
 PROCESS_TIMEOUT = int(os.environ.get("UPLOAD_PROCESS_TIMEOUT", "360"))
 FIRST_PAUSE, MOST_PAUSE = 1.0, 60.0
-KEY_FILE = os.path.expanduser("~/.config/scrap-heist/roblox-api-key")
-CREATOR_ID = os.environ.get("ROBLOX_CREATOR_ID", "670715109")
+KEY_FILE = os.path.join(config_dir(), "roblox-api-key")
+# The Roblox user the assets are created under; no default, each game sets its own.
+CREATOR_ID = os.environ.get("ROBLOX_CREATOR_ID", "").strip()
 GATHER = float(os.environ.get("UPLOAD_GATHER", "0.25"))
 # Bytes stand in for how heavy a bundle is. Roblox refuses to parse a file
 # past some weight: two 4-7 MB remix junkrots (40-90 thousand triangles
@@ -147,6 +149,8 @@ class Uploader:
 		self.typical_processing = 3.0
 		if not dry and not api_key():
 			raise RuntimeError(f"no Roblox API key: set ROBLOX_API_KEY or put it in {KEY_FILE}")
+		if not dry and not CREATOR_ID:
+			raise RuntimeError("no Roblox creator: set ROBLOX_CREATOR_ID (a repository secret on build machines) to the user id the assets belong to")
 
 	def known(self, identity):
 		return identity in self.record or identity in ids_in(self.ledger_path)
@@ -279,8 +283,8 @@ class Uploader:
 		boundary = uuid.uuid4().hex
 		metadata = json.dumps({
 			"assetType": "Model",
-			"displayName": f"Scrap Heist {self.name} {label}"[:50],
-			"description": "Scrap Heist map objects, one child per object",
+			"displayName": f"{setting('display_name')} {self.name} {label}"[:50],
+			"description": f"{setting('display_name')} map objects, one child per object",
 			"creationContext": {"creator": {"userId": CREATOR_ID}},
 		})
 		body = b"".join([

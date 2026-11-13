@@ -4,8 +4,14 @@ import os
 import sys
 import time
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(ROOT, "tools", "coordinator"))
+from game_settings import FRAMEWORK, GAME_ROOT, setting
+
+# Game files and the git checkout are under ROOT, the game's folder (on a
+# build machine, the checkout); the framework's scripts are under SCRIPTS.
+ROOT = str(GAME_ROOT)
+SCRIPTS = os.path.join(FRAMEWORK, "scripts")
+# The hub's modules (wire, commits, uploader) are shared with the agent.
+sys.path.insert(0, os.path.join(FRAMEWORK, "hive", "hub"))
 
 MAX_MESSAGE = 64 * 1024 * 1024
 LOST_MINUTES = 3
@@ -15,7 +21,8 @@ CLAIM_WAIT_SECONDS = 15
 CLAIM_TRIES = 4
 LOG_LINES_KEPT = 200
 REQUIRED_TOOLS = ("rg", "sd", "jq")
-AUDIENCE = "scrap-heist-coordinator"
+# Must equal the hub's (framework/hive/hub/oidc.py).
+AUDIENCE = f"{setting('name')}-coordinator"
 # A file bigger than this goes in parts, so heartbeats get onto the wire
 # between them instead of waiting behind the whole file (send_file).
 PART_BYTES = 1024 * 1024
