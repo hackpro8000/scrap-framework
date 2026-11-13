@@ -8,8 +8,8 @@
 set -euo pipefail
 
 # ripgrep and sd for searching and editing (CLAUDE.md asks for them over grep
-# and sed), jq for scripts/upload-chunks.sh, ffmpeg for MP4 turntables, and a
-# virtual desktop (Xvfb + Openbox) for GUI apps (see scripts/desktop.sh).
+# and sed), jq for framework/scripts/upload-chunks.sh, ffmpeg for MP4 turntables, and a
+# virtual desktop (Xvfb + Openbox) for GUI apps (see framework/scripts/desktop.sh).
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
 	ca-certificates curl jq ripgrep sd \
@@ -17,7 +17,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
 	>/dev/null
 
 # Start the virtual 1920x1080 desktop on :99. Inlined rather than calling
-# scripts/desktop.sh, since the repo may not be cloned yet when this runs.
+# framework/scripts/desktop.sh, since the repo may not be cloned yet when this runs.
 if ! xdpyinfo -display :99 >/dev/null 2>&1; then
 	nohup Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
 	for _ in $(seq 50); do

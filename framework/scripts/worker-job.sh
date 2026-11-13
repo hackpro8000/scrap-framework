@@ -3,12 +3,12 @@
 # Every job starts fresh from the code it names, so a worker can take any
 # number of jobs one after another without leftovers from the last one.
 #
-#   scripts/worker-job.sh W3 map-a-s3 shard <Layout> 3/8
+#   framework/scripts/worker-job.sh W3 map-a-s3 shard <Layout> 3/8
 #       build one shard of a layout and upload its chunks
-#   scripts/worker-job.sh W3 crate-a model <Model>
+#   framework/scripts/worker-job.sh W3 crate-a model <Model>
 #       build one model and send back its preview
-#   scripts/worker-job.sh W3 crate-b model <Model> @3f9c2ab
-#       build that commit or branch instead of main (scripts/push-wip.sh
+#   framework/scripts/worker-job.sh W3 crate-b model <Model> @3f9c2ab
+#       build that commit or branch instead of main (framework/scripts/push-wip.sh
 #       pushes unfinished work to wip/coordinator for this)
 #
 # Results go to art/jobs/<job id>/ on the worker's branch (its session
@@ -122,7 +122,7 @@ if [ -n "${earlier}" ] && git cat-file -e "${earlier}:./art/jobs" 2>/dev/null; t
 fi
 
 if ! command -v jq >/dev/null 2>&1 || ! command -v rg >/dev/null 2>&1; then
-	say "installing tools (scripts/cloud-setup.sh)"
+	say "installing tools (framework/scripts/cloud-setup.sh)"
 	bash "${scripts}/cloud-setup.sh" >> "${log}" 2>&1 || sudo bash "${scripts}/cloud-setup.sh" >> "${log}" 2>&1 || say "cloud setup failed; carrying on"
 fi
 mkdir -p "${out}"

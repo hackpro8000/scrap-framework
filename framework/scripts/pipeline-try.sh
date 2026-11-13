@@ -6,9 +6,9 @@
 # preview build. Prints one last line: TRY OK in Ns (update As, engine Bs,
 # build Cs), or TRY FAILED at <step> after that step's output.
 #
-#   scripts/pipeline-try.sh                       # the game's try_models, 2 units
-#   scripts/pipeline-try.sh --engine              # compile the engine even if unchanged
-#   scripts/pipeline-try.sh --models A,B
+#   framework/scripts/pipeline-try.sh                       # the game's try_models, 2 units
+#   framework/scripts/pipeline-try.sh --engine              # compile the engine even if unchanged
+#   framework/scripts/pipeline-try.sh --models A,B
 
 set -uo pipefail
 
@@ -20,7 +20,7 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 		--engine) force_engine=1 ;;
 		--models) models="${2:?--models wants A,B}"; shift ;;
-		*) echo "usage: scripts/pipeline-try.sh [--engine] [--models A,B]" >&2; exit 2 ;;
+		*) echo "usage: framework/scripts/pipeline-try.sh [--engine] [--models A,B]" >&2; exit 2 ;;
 	esac
 	shift
 done
@@ -70,7 +70,7 @@ fi
 
 needs_engine="${force_engine}"
 if [ -z "${needs_engine}" ]; then
-	# The same hash scripts/build-model.sh keeps; the build-engine branch holds the last one a machine compiled.
+	# The same hash framework/scripts/build-model.sh keeps; the build-engine branch holds the last one a machine compiled.
 	source_sha="$({ (cd "${FRAMEWORK}/engine" && find crates Cargo.toml -type f | LC_ALL=C sort | xargs sha256sum) && (cd "${GAME_ROOT}" && find Cargo.toml Cargo.lock engine/src engine/Cargo.toml $(ls -d art/plugins 2> /dev/null) -type f | LC_ALL=C sort | xargs sha256sum); } | sha256sum | cut -c1-64)"
 	shared=""
 	git fetch -q --depth=1 origin refs/heads/build-engine 2> /dev/null && shared="$(git show FETCH_HEAD:source-sha 2> /dev/null || true)"

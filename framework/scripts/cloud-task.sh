@@ -7,8 +7,8 @@
 #
 # It prepares the machine (scripts/machine-setup/map-build.sh). Then, if the
 # commit the session checked out is a task commit made by
-# scripts/cloud-dispatch.sh ("cloud-task <task> shard <i> of <n> <Layout>"),
-# it builds that shard (scripts/cloud-shard.sh) and pushes the result to
+# framework/scripts/cloud-dispatch.sh ("cloud-task <task> shard <i> of <n> <Layout>"),
+# it builds that shard (framework/scripts/cloud-shard.sh) and pushes the result to
 # cloud-results/<task>/s<i>, the session's own branch.
 #
 # It always exits 0, because a failing setup script stops the session from

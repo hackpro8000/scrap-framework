@@ -159,7 +159,7 @@ class Agent(Units, Sending, Updates):
 			say(f"connection lost ({error}; {answered}); retrying in {self.backoff}s")
 			if self.failures == TUNNEL_ALERT_FAILURES:
 				alert(f"ALERT TUNNEL_DOWN: S{self.index} failed to reach {self.address} {self.failures} times in a row ({answered}: {error}) "
-					"| machine 1's tunnel or coordinator is down; if it stays down, start a new run (scripts/standby-start.sh)")
+					"| machine 1's tunnel or coordinator is down; if it stays down, start a new run (framework/scripts/standby-start.sh)")
 			await asyncio.sleep(self.backoff)
 			# A numbered machine waits for the next hub, a minute apart.
 			self.backoff = min(60 if self.published else 30, self.backoff * 2)

@@ -3,10 +3,10 @@
 # branch per shard, cloud-task/<task>/s<i>, each a commit on top of the
 # build's commit whose message names its shard. A session created in the
 # game's cloud environment (cloud_environment in game.toml) on that branch builds the shard as it starts
-# (scripts/cloud-task.sh) and pushes cloud-results/<task>/s<i>;
-# scripts/cloud-results.sh collects them.
+# (framework/scripts/cloud-task.sh) and pushes cloud-results/<task>/s<i>;
+# framework/scripts/cloud-results.sh collects them.
 #
-#   scripts/cloud-dispatch.sh <task> <count> [commit, default: the working
+#   framework/scripts/cloud-dispatch.sh <task> <count> [commit, default: the working
 #                                             tree, pushed with push-wip.sh]
 #                             [layout, default: the game's default_layout]
 set -euo pipefail

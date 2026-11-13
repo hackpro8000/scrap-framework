@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Prints each cloud build machine's open question as it arrives, one line per
 # question, for the owner's session to watch (run it under Monitor, or in a
-# terminal). Machines post them with scripts/machine-ask.sh. Questions
+# terminal). Machines post them with framework/scripts/machine-ask.sh. Questions
 # already there when it starts are printed first, unless --new.
 #
-#   scripts/machine-questions.sh [--new] [poll seconds, default 30]
+#   framework/scripts/machine-questions.sh [--new] [poll seconds, default 30]
 
 set -uo pipefail
 

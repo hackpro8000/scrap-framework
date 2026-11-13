@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Runs one standby task on this shard machine (scripts/standby.sh calls it
+# Runs one standby task on this shard machine (framework/scripts/standby.sh calls it
 # with the task's commit checked out, so this is always the task's own copy).
 #
-#   scripts/standby-task.sh <Layout> <index> <count> <results folder>
+#   framework/scripts/standby-task.sh <Layout> <index> <count> <results folder>
 #
-# The task is <results folder>/task.txt, as scripts/send-build.sh posted it:
+# The task is <results folder>/task.txt, as framework/scripts/send-build.sh posted it:
 #
 #   ref=<commit>                      build this shard of the layout
 #   upload=no                         ... without handing its objects over
 #   build=no                          skip the build: render the previews only
 #   upload-of=<build task id>         upload what that build handed over
 #   hand-over=coordinator             leave the objects in <results>/handed/
-#                                     for scripts/standby-agent.py to send
+#                                     for framework/scripts/standby-agent.py to send
 #   preview=<Name>,<Name>...          render these models' previews too;
-#                                     scripts/standby-agent.py runs
-#                                     scripts/standby-previews.sh for them
+#                                     framework/scripts/standby-agent.py runs
+#                                     framework/scripts/standby-previews.sh for them
 #                                     once the build's result has gone
 #   hand-over=branch                  push them to build-objects/s<index> as
 #                                     before, list them in <results>/handed/
@@ -31,12 +31,13 @@
 # machine, once every build is in, lets one throttle see every rate limit;
 # sixteen machines each backing off blindly only fight over the limit. It
 # gathers what every shard handed over for that build and sends it with
-# scripts/upload-objects.py, writing uploaded.tsv and summary.txt. The other
+# framework/scripts/upload-objects.py, writing uploaded.tsv and summary.txt. The other
 # shards leave no summary, so nothing of theirs is pushed.
 
 set -uo pipefail
 
 source "$(dirname "$0")/lib/game.sh"
+source "$(dirname "$0")/lib/hive.sh"
 layout="${1:?layout required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
@@ -147,7 +148,9 @@ prepare_lane() {
 		mkdir -p "${lanes_dir}"
 		git worktree add -q -f --detach "${at}" "${commit}" || return 1
 	fi
-	cp -p "${GAME_ROOT}/engine/bin/modelkit-linux-x64" "${GAME_ROOT}/engine/bin/modelkit-linux-x64.source-sha" "$(lane_game "$1")/engine/bin/" &&
+	# Neither folder is in git: the engine is built per game, the layout assembled.
+	mkdir -p "$(lane_game "$1")/engine/bin" "$(lane_game "$1")/${model}" &&
+		cp -p "${GAME_ROOT}/engine/bin/modelkit-linux-x64" "${GAME_ROOT}/engine/bin/modelkit-linux-x64.source-sha" "$(lane_game "$1")/engine/bin/" &&
 		cp "${model}/model.luau" "$(lane_game "$1")/${model}/model.luau"
 }
 
@@ -219,7 +222,7 @@ build() {
 	# With the engine from before a change shipped beside the new one
 	# (framework/engine/proof-base, put there for the proof and never committed),
 	# this machine proves one sample model unchanged instead of building the
-	# layout (scripts/bake-proof.sh). The samples are the game's sample_models.
+	# layout (framework/scripts/bake-proof.sh). The samples are the game's sample_models.
 	if [ -f "${FRAMEWORK}/engine/proof-base/Cargo.toml" ]; then
 		local samples proved="DONE"
 		read -r -a samples <<< "$(game_setting sample_models "")"
@@ -275,7 +278,8 @@ build() {
 	export MODELKIT_PROFILE=1
 	local build_started=${SECONDS} lane
 	{
-		"${FRAMEWORK}/scripts/assemble-model.sh" "${layout}" && "${FRAMEWORK}/scripts/build-model.sh" --engine && prepare_lanes
+		"${FRAMEWORK}/scripts/assemble-model.sh" "${layout}" && mkdir -p engine/bin &&
+			with_ticks "${out}/build.log" "${FRAMEWORK}/scripts/build-model.sh" --engine && prepare_lanes
 	} >> "${out}/build.log" 2>&1 || status="FAILED"
 	if [ "${status}" = "DONE" ]; then
 		for lane in $(seq 1 "${LANES}"); do start_lane "${lane}"; done

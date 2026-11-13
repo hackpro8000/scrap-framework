@@ -57,10 +57,16 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           sparse-checkout-cone-mode: false
+          # The game's engine package is built here (engine/bin is not in git).
           sparse-checkout: |
             /game.toml
+            /Cargo.toml
+            /Cargo.lock
+            /engine/
             /framework/
             /art/src/
+            /art/style/
+            /art/plugins/
             /art/models/*/model.luau
       # A workflow input's default can't read a file, so the layout falls back here.
       - name: Read the game's settings
@@ -82,6 +88,7 @@ jobs:
           echo "CACHE_BEFORE=$(ls "$cache" | sha1sum | cut -c1-16)" >> "$GITHUB_ENV"
           echo "CACHE_ENTRIES=$(ls "$cache" | wc -l)" >> "$GITHUB_ENV"
           framework/scripts/assemble-model.sh "$LAYOUT"
+          mkdir -p engine/bin
           start=$SECONDS
           set -o pipefail
           framework/scripts/build-model.sh "$LAYOUT" -- --chunks --shard "$SHARE" 2>&1 | tee build.log

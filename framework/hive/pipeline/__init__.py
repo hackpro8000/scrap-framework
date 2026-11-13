@@ -6,7 +6,7 @@ units and leases; this package makes a model build out of them. On the hub
 Roblox, bake claims and the bake swap between machines, previews published
 beside their models, the git link, and engine checks. In client.py
 (client_plugin.py): `build` and `engine`. On a build machine
-(agent_plugin.py): running a shard (scripts/standby-task.sh), its previews
+(agent_plugin.py): running a shard (framework/scripts/standby-task.sh), its previews
 and bake sharing, machine 1's uploads, and the engine compile.
 
 It loads when game.toml's hive_plugins names it (the default). It imports the

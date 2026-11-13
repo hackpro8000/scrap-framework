@@ -15,7 +15,7 @@ from pipeline import commits
 # What a machine may name: a model folder, and a commit.
 MODEL_NAME = re.compile(r"[A-Za-z0-9_]+")
 COMMIT = re.compile(r"[0-9a-f]{7,64}")
-# What a previews-only unit reports (scripts/standby-task.sh), for one dropped unstarted.
+# What a previews-only unit reports (framework/scripts/standby-task.sh), for one dropped unstarted.
 SKIPPED_SUMMARY = "status=DONE\nbuild=-\nupload=skipped\ntotal=0\nparts=0\n"
 
 

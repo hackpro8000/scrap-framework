@@ -11,7 +11,7 @@ kinds of task, the requests that post them and the messages about them
                                          [--control-key K] [--relay-results]
                                          [the plugins' options]
 
-Machines (scripts/standby-agent.py) connect to the agent port, proving with
+Machines (framework/scripts/standby-agent.py) connect to the agent port, proving with
 GitHub's identity token that they are this repo's standby machines (oidc.py),
 and keep the connection open. The session talks to the control port, which
 listens on this machine only (framework/hive/hub/client.py). Both carry JSON
@@ -44,10 +44,10 @@ complete, so a restarted hub takes them back (through the plugin whose
 task kind wrote them); a session that lost its connection asks for its task
 again with {"type": "watch-task", "task": id}.
 
-A machine that is not a GitHub one (scripts/cloud-worker.sh) is admitted
+A machine that is not a GitHub one (framework/scripts/cloud-worker.sh) is admitted
 by a one-time token: {"type": "mint-workers", "count": n} (signed session
 only) makes n tokens, kept in memory only, one live connection per token.
-A numbered machine (scripts/cloud-worker.sh join) needs no minting: with
+A numbered machine (framework/scripts/cloud-worker.sh join) needs no minting: with
 COORDINATOR_WORKER_KEY in the hub's environment, a hello with "machine": n
 and "worker:<its lasting token>" (wire.machine_token) is admitted and takes
 units at once. GitHub machines are told {"type": "active"} when a task is

@@ -28,6 +28,10 @@ class Uploads:
 		asyncio.create_task(self.receive_fetch(socket, event))
 
 	def make_uploader(self, layout):
+		dry = os.environ.get("AGENT_DRY_UPLOAD") == "1"
+		lacking = "" if dry else uploading.missing()
+		if lacking:
+			raise RuntimeError(f"this machine can't upload: {lacking} (the repository secrets ROBLOX_API_KEY and ROBLOX_CREATOR_ID)")
 		self.uploader = uploading.Uploader(ROOT, layout, say, dry=os.environ.get("AGENT_DRY_UPLOAD") == "1", on_done=self.answer)
 		if self.start_width:
 			# A run starts at least START wide, its known limit forgotten:
@@ -35,12 +39,13 @@ class Uploads:
 			self.uploader.throttle.limit = max(uploading.START, min(uploading.MOST, float(self.start_width)))
 
 	async def receive_fetch(self, socket, event):
-		"""Machine 1: a builder pushed objects; fetch them and upload the ones asked for."""
-		if self.uploader is None:
-			self.make_uploader(self.agent.target)
+		"""Machine 1: a builder pushed objects; fetch them and upload the ones asked for.
+		Without the repository's Roblox secrets each object is answered with why."""
 		into = os.path.join(self.inbox, f"{event['task']}-S{event['shard']}")
 		started = time.monotonic()
 		try:
+			if self.uploader is None:
+				self.make_uploader(self.agent.target)
 			await asyncio.to_thread(self.fetch_objects, event["commit"], into)
 		except Exception as error:
 			say(f"S{event['shard']}'s objects: {error}")

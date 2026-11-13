@@ -3,13 +3,13 @@
 # is not on standby, such as a Claude cloud session machine, and sends them
 # home by itself. No coordinator, no token, no upload.
 #
-#   scripts/cloud-preview.sh <task> <index> <count> <Name,Name,...>
+#   framework/scripts/cloud-preview.sh <task> <index> <count> <Name,Name,...>
 #
 # It prepares the machine (scripts/machine-setup/map-build.sh), renders every
-# count-th name from its index with scripts/standby-previews.sh (preview.png
+# count-th name from its index with framework/scripts/standby-previews.sh (preview.png
 # and four turns per model, from the model's committed model.luau), then
 # commits cloud-results/P<index>/ and pushes it to the branch
-# cloud-previews/<task>/s<index>, where scripts/cloud-previews.sh collects
+# cloud-previews/<task>/s<index>, where framework/scripts/cloud-previews.sh collects
 # it. Renders are 768 pixels (PREVIEW_SIZE changes that): they travel by git,
 # so the 384 the tunnel needed does not apply.
 #

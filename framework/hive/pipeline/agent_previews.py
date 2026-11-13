@@ -17,7 +17,7 @@ CLAIM_TRIES = 4
 class Previews:
 	async def send_previews(self, unit, text, count, work):
 		"""Renders this unit's share of the task's previews once its build
-		result has gone (scripts/standby-previews.sh), sends them, then says
+		result has gone (framework/scripts/standby-previews.sh), sends them, then says
 		so, even with nothing to render, so the coordinator can count units."""
 		agent = self.agent
 		identity, shard = unit

@@ -7,13 +7,15 @@ import sys
 
 # The game's settings (framework/hive/game_settings.py) sit one folder up.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from game_settings import FRAMEWORK, GAME_ROOT, cache_dir, setting  # noqa: E402
+from game_settings import FRAMEWORK, GAME_ROOT, cache_dir, repository, setting  # noqa: E402
 
 # Game files (results, its git checkout) are under ROOT, the game's folder;
 # the framework's own scripts are under SCRIPTS.
 ROOT = str(GAME_ROOT)
 SCRIPTS = os.path.join(FRAMEWORK, "scripts")
-REPOSITORY = setting("repository")
+# The repository whose standby machines are let in (oidc.py): game.toml's,
+# or the checkout's own while game.toml still has the placeholder.
+REPOSITORY = repository()
 WORKFLOW = ".github/workflows/build-standby.yml"
 MAX_MESSAGE = 64 * 1024 * 1024
 # Control only ever receives small requests; the public port refuses big ones before admission.
@@ -27,7 +29,7 @@ KEEP_FINISHED = 20
 WORKER_PREFIX = "worker:"
 MAX_WORKERS = 100
 # --control-key: a control connection counts only once the session has
-# signed a fresh nonce with its key (scripts/coordinator.sh key).
+# signed a fresh nonce with its key (framework/scripts/coordinator.sh key).
 CONTROL_NAMESPACE = f"{setting('name')}-control"
 CHALLENGE_SECONDS = 30
 TAILNET = ipaddress.ip_network("100.64.0.0/10")

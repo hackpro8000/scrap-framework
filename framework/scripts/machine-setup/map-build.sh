@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prepares a machine for map building: everything scripts/standby-agent.py
-# and scripts/build-model.sh need on a plain Ubuntu 24.04 machine with this
+# Prepares a machine for map building: everything framework/scripts/standby-agent.py
+# and framework/scripts/build-model.sh need on a plain Ubuntu 24.04 machine with this
 # repo checked out, as the standby workflow's steps prepare a GitHub machine.
 # It starts nothing and needs no secrets. Safe to run again: whatever is
 # already there is left alone.
@@ -44,7 +44,7 @@ fi
 "${FRAMEWORK}/scripts/ensure-tools.sh"
 export PATH="$HOME/.local/bin:$PATH"
 
-# Rust, for when the engine has to be compiled here (scripts/build-model.sh
+# Rust, for when the engine has to be compiled here (framework/scripts/build-model.sh
 # takes a shared one from the build-engine branch first).
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 if ! command -v cargo > /dev/null; then

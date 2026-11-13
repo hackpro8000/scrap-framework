@@ -1,6 +1,6 @@
 """PipelineAgent mixin: an engine check. {"type": "engine", "id", "shard",
 "commit", "lease"} is a unit like a build's (taken and cancelled by the
-agent the same way): the commit is checked out and scripts/build-model.sh
+agent the same way): the commit is checked out and framework/scripts/build-model.sh
 --engine compiles it (and shares the binary on the build-engine branch). Its
 output goes to the hub as it comes, {"type": "engine-output", "lines"}, and
 {"type": "engine-done", "ok", "code", "tail"} (the last 200 lines) ends it.
@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import time
 
-from agent.common import SCRIPTS
+from agent.common import ROOT, SCRIPTS
 from agent.update import SHA
 
 TAIL_LINES = 200
@@ -36,7 +36,9 @@ class EngineUnits:
 		shutil.rmtree(out, ignore_errors=True)
 		os.makedirs(out, exist_ok=True)
 		log = os.path.join(out, "engine.log")
-		self.agent.begin(unit, "engine", log)
+		# cargo -q says nothing for the minutes a cold compile takes: never
+		# counted quiet (wedged), while its heartbeats still show the machine lives.
+		self.agent.begin(unit, "engine", log, waiting=True)
 		try:
 			code, tail = await asyncio.to_thread(self.compile_engine, unit, commit, work, log, asyncio.get_running_loop())
 		except Exception as error:
@@ -71,6 +73,8 @@ class EngineUnits:
 		# Not as a shard: a shard other than 1 would wait for machine 1's engine.
 		environment.pop("SHARD", None)
 		environment.pop("MODELKIT_NO_COMPILE", None)
+		# The binary's folder is not in git (each game builds its own engine).
+		os.makedirs(os.path.join(ROOT, "engine", "bin"), exist_ok=True)
 		process = subprocess.Popen([os.path.join(SCRIPTS, "build-model.sh"), "--engine"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
 			text=True, errors="replace", env=environment, start_new_session=True)
 		work["processes"].add(process)

@@ -1,5 +1,5 @@
 # Keeps up to 20 shard machines warm (the account's limit), building each task posted with
-# scripts/send-build.sh as it arrives (scripts/standby.sh). One cold start,
+# framework/scripts/send-build.sh as it arrives (framework/scripts/standby.sh). One cold start,
 # then every task skips machine start and checkout. Machines stay up while
 # tasks keep coming: each task restarts the idle countdown (`minutes`, at
 # most 60), and standby ends at `max_minutes` regardless (or when the run is
@@ -10,21 +10,23 @@
 # own. The cache a machine fills while it is up only speeds up the tasks
 # that follow in the same run, and goes when the machine does.
 #
-# Given a coordinator address (scripts/standby-start.sh passes the one
-# scripts/coordinator.sh started), each machine keeps a live connection to
-# it instead (scripts/standby-agent.py): tasks arrive the moment they're
+# Given a coordinator address (framework/scripts/standby-start.sh passes the one
+# framework/scripts/coordinator.sh started), each machine keeps a live connection to
+# it instead (framework/scripts/standby-agent.py): tasks arrive the moment they're
 # posted and results and objects go straight back, so nothing polls. A
 # machine proves who it is with this job's GitHub identity token; a ws://
 # address is a tailnet one, reached by joining the tailnet with TS_AUTHKEY.
-# With coordinator=machine-1 (scripts/standby-start.sh --on-machine, for a
+# With coordinator=machine-1 (framework/scripts/standby-start.sh --on-machine, for a
 # session that can't connect out), machine 1 runs the coordinator and does
-# the uploads itself, reached by the others over the tailnet, and takes
+# the uploads itself (uploads are off when the repository has no
+# ROBLOX_API_KEY and ROBLOX_CREATOR_ID secrets; builds and previews still
+# run), reached by the others over the tailnet, and takes
 # tasks from the build-queue branch. Without TS_AUTHKEY, machine 1 opens a
 # Cloudflare quick tunnel to each of its ports instead, publishes both as
 # address.json on build-results/coordinator-address, and its control port
 # admits only the session that signs with the `control_key` input's key.
 # Without a coordinator, machines wait on the build-queue branch
-# (scripts/standby.sh).
+# (framework/scripts/standby.sh).
 #
 #   framework/scripts/standby-start.sh 20
 #   gh workflow run build-standby.yml -f ref=wip/coordinator -f shards=20
@@ -33,7 +35,7 @@
 # are in framework/scripts/. An empty layout builds the game's default_layout,
 # and the tailnet names start with its host_prefix.
 name: Build standby
-# The run's title carries its settings, so scripts/standby-status.sh can read
+# The run's title carries its settings, so framework/scripts/standby-status.sh can read
 # them from the run list (workflow inputs aren't in the runs API).
 run-name: "Standby ${{ inputs.layout || 'default' }} x${{ inputs.shards }} from ${{ inputs.ref }} (idle ${{ inputs.minutes }}m, max ${{ inputs.max_minutes }}m)${{ inputs.coordinator == 'machine-1' && ' live on machine 1' || inputs.coordinator != '' && ' live' || '' }}"
 
@@ -59,7 +61,7 @@ on:
         description: Coordinator address (ws:// on the tailnet, wss:// through a tunnel), machine-1 to host it on machine 1, or empty for the build-queue branch
         default: ""
       control_key:
-        description: With machine-1 and no TS_AUTHKEY, the public key the control port admits (scripts/coordinator.sh key); public, not a secret
+        description: With machine-1 and no TS_AUTHKEY, the public key the control port admits (framework/scripts/coordinator.sh key); public, not a secret
         default: ""
 
 permissions:
@@ -91,10 +93,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           sparse-checkout-cone-mode: false
+          # What a build or preview reads: the settings, the framework, the
+          # game's engine package (built here: engine/bin is not in git) and
+          # its art sources, look and assembled models.
           sparse-checkout: |
             /game.toml
+            /Cargo.toml
+            /Cargo.lock
+            /engine/
             /framework/
             /art/src/
+            /art/style/
+            /art/plugins/
             /art/models/*/model.luau
       # A workflow input's default can't read a file, so the game's settings come in here.
       - name: Read the game's settings
@@ -117,7 +127,7 @@ jobs:
         env:
           COORDINATOR: ${{ inputs.coordinator }}
           CONTROL_KEY: ${{ inputs.control_key }}
-          # Admits the numbered cloud machines (scripts/cloud-worker.sh join).
+          # Admits the numbered cloud machines (framework/scripts/cloud-worker.sh join).
           COORDINATOR_WORKER_KEY: ${{ matrix.shard == 1 && secrets.WORKER_KEY || '' }}
           RUN_ID: ${{ github.run_id }}
           SHARD: ${{ matrix.shard }}

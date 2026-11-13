@@ -3,19 +3,19 @@
 # prints each shard's result as it arrives, and checks them once all are
 # back. Then, unless told not to upload, it has the uploader (shard 1) send
 # every object that has no asset yet, in one go. The commit must already be
-# on GitHub (scripts/push-wip.sh pushes unfinished work).
+# on GitHub (framework/scripts/push-wip.sh pushes unfinished work).
 #
-#   scripts/send-build.sh                      # main, on the running standby
-#   scripts/send-build.sh "$(scripts/push-wip.sh)"
-#   scripts/send-build.sh main auto 300 no      # build without uploading
-#   scripts/send-build.sh main 8 300            # say the machine count yourself
+#   framework/scripts/send-build.sh                      # main, on the running standby
+#   framework/scripts/send-build.sh "$(framework/scripts/push-wip.sh)"
+#   framework/scripts/send-build.sh main auto 300 no      # build without uploading
+#   framework/scripts/send-build.sh main 8 300            # say the machine count yourself
 #
 # With the count left as `auto`, the running standby's machine count is used
-# (scripts/standby-status.sh), and it stops at once if none is running.
+# (framework/scripts/standby-status.sh), and it stops at once if none is running.
 #
 # Results land in .standby-results/<task id>/S<i>/ (ignored by git), and the
 # upload's in .standby-results/<task id>/uploaded.tsv. Merge them into the
-# game's tables with scripts/merge-shards.sh.
+# game's tables with framework/scripts/merge-shards.sh.
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ client="${FRAMEWORK}/hive/hub/client.py"
 top="$(git rev-parse --show-toplevel)"
 
 # Models that changed since they were last checked must have no floating
-# pieces or broken surfaces (scripts/check-models.sh; CHECK=skip to build
+# pieces or broken surfaces (framework/scripts/check-models.sh; CHECK=skip to build
 # anyway).
 if [ "${CHECK:-}" != "skip" ] && ! "${scripts}/check-models.sh" >&2; then
 	echo "a changed model failed its check; fix it, or build anyway with CHECK=skip" >&2
@@ -69,7 +69,7 @@ if python3 "${client}" status > /dev/null 2>&1; then
 	exec python3 "${client}" build "${commit}" "${flags[@]}"
 fi
 
-# Machine 1 runs the coordinator (scripts/standby-start.sh --on-machine): the
+# Machine 1 runs the coordinator (framework/scripts/standby-start.sh --on-machine): the
 # task goes on the build-queue branch for it, and the whole task's results
 # come back as one commit on build-results/coordinator, checked for every
 # LINK_SECONDS. The only polling left, for a session that can't connect out.

@@ -5,8 +5,8 @@
 # files are left alone; the snapshot sits on top of HEAD in a temporary index.
 # Ignored files stay out, as with git add -A.
 #
-#   scripts/push-wip.sh                  # to wip/coordinator
-#   scripts/push-wip.sh wip/crane        # to another scratch branch
+#   framework/scripts/push-wip.sh                  # to wip/coordinator
+#   framework/scripts/push-wip.sh wip/crane        # to another scratch branch
 
 set -euo pipefail
 

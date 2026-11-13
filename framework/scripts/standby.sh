@@ -6,13 +6,13 @@
 # exits after <idle minutes> without one, or at <max minutes> whatever
 # happens.
 #
-#   scripts/standby.sh <Layout> <index> <count> <idle minutes> [max minutes]
+#   framework/scripts/standby.sh <Layout> <index> <count> <idle minutes> [max minutes]
 #
 # The queue is a branch of task files, tasks/<task id>.txt, each holding
 # `ref=<full commit hash>` and whatever else the task needs;
-# scripts/send-build.sh adds them. Every task posted since this machine came
+# framework/scripts/send-build.sh adds them. Every task posted since this machine came
 # up (STANDBY_SINCE) is run once, oldest first: the machine checks the task's
-# commit out and hands the task to that commit's scripts/standby-task.sh, so
+# commit out and hands the task to that commit's framework/scripts/standby-task.sh, so
 # what a task does can change without restarting standby. Results go to
 # results/<task id>/ and, when the task left a summary.txt there, are pushed
 # to build-results/s<index> as a new commit on top of the earlier ones, its

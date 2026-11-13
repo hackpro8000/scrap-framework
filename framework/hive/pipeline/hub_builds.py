@@ -2,7 +2,7 @@
 posting and reloading them, the handed-over objects among a unit's files,
 and the task's end: uploads waited for, uploaded.tsv and summary.txt
 written, and the results merged into the game's tables
-(scripts/merge-shards.sh)."""
+(framework/scripts/merge-shards.sh)."""
 import asyncio
 import json
 import os
@@ -22,10 +22,17 @@ class Builds:
 		if not isinstance(request.get("ref"), str) or not isinstance(previews, list) or not all(isinstance(name, str) for name in previews):
 			await socket.send(json.dumps({"type": "error", "text": "a build wants a ref and a list of preview names"}))
 			return
+		upload, build = bool(request.get("upload", True)), bool(request.get("build", True))
+		refused = self.refusal(upload, build)
+		if refused:
+			say(f"build of {request['ref'][:12]} refused: {refused}")
+			await socket.send(json.dumps({"type": "error", "text": refused}))
+			return
 		identity = hub.new_task_id("t")
 		hub.watchers.add(socket)
-		task = await self.post(identity, request["ref"], request.get("upload", True), previews,
-			request.get("build", True), request.get("units"), request.get("weights"))
+		# Previews alone hand nothing over; with uploads off nothing is asked to upload.
+		task = await self.post(identity, request["ref"], upload and not self.uploads_off, previews,
+			build, request.get("units"), request.get("weights"))
 		task.watchers.add(socket)
 		event = hub.machines_event()
 		await socket.send(json.dumps({"type": "posted", "task": identity, "count": task.count, "up": event["up"],
@@ -49,6 +56,10 @@ class Builds:
 	def load_task(self, identity, fields):
 		"""A build a previous hub left in the tasks file (BuildTask.saved), or None."""
 		if not self.task_entry_fits(identity, fields):
+			return None
+		refused = self.refusal(fields["upload"], fields.get("build", True))
+		if refused:
+			say(f"task {identity} not taken back: {refused}")
 			return None
 		task = BuildTask(self, identity, fields["ref"], fields["upload"], fields["count"], fields.get("previews", []), fields.get("build", True),
 			fields.get("weights"), self.hub.results)
@@ -118,7 +129,7 @@ class Builds:
 		await hub.relay(task, "results", "summary.txt")
 		merged = None
 		# Fake uploads must never reach the game's tables.
-		mergeable = task.upload and not failed and not self.dry and not hub.test_without_identity
+		mergeable = task.upload and not failed and not self.dry and not self.uploads_off and not hub.test_without_identity
 		if mergeable and not self.git_link and not hub.relay_results:
 			merged = await asyncio.to_thread(self.merge, task)
 		# Relayed: the session has the files and merges them itself (merge_here).
@@ -128,7 +139,7 @@ class Builds:
 			"relayed": hub.relay_results, "merge_here": bool(mergeable and hub.relay_results), "layout": self.layout}
 
 	def merge(self, task):
-		"""Merges a finished task into the game's tables (scripts/merge-shards.sh)
+		"""Merges a finished task into the game's tables (framework/scripts/merge-shards.sh)
 		and returns the asset ids that are new, which need the game's
 		permission; or the merge's error."""
 		shards = sorted(os.path.join(task.out, name) for name in os.listdir(task.out) if name.startswith("S"))

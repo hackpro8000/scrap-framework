@@ -21,7 +21,7 @@ OLD, NEW, NEWER = "a" * 40, "b" * 40, "c" * 40
 def cases(q):
 	"""The cases, given test_build's module (its Hub, Fake, post, check)."""
 	client_update.POLL_SECONDS = 0.05
-	# The real agent's modules (loaded with scripts/standby-agent.py) say and alert on their own.
+	# The real agent's modules (loaded with framework/scripts/standby-agent.py) say and alert on their own.
 	from agent import update as agent_update
 	alerts = []
 	agent_update.alert = alerts.append

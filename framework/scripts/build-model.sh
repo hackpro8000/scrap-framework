@@ -50,6 +50,7 @@ if [ "$(cat "${stamp}" 2>/dev/null || true)" != "${source_sha}" ]; then
 	fi
 	[ -n "${SHARD:-}" ] && export MODELKIT_SHARE_ENGINE=1
 	if [ -s "${fetched}" ] || shared_engine; then
+		mkdir -p "$(dirname "${modelkit}")"
 		install -m 755 "${fetched}" "${modelkit}"
 		echo "engine: taken from the build-engine branch" >&2
 	elif [ "${MODELKIT_NO_COMPILE:-}" = "1" ]; then
@@ -60,6 +61,7 @@ if [ "$(cat "${stamp}" 2>/dev/null || true)" != "${source_sha}" ]; then
 		exit 0
 	elif command -v cargo >/dev/null 2>&1; then
 		cargo build -q --release --manifest-path "${root}/Cargo.toml" -p engine
+		mkdir -p "$(dirname "${modelkit}")"
 		cp "${root}/target/release/modelkit" "${modelkit}"
 		if [ "${MODELKIT_SHARE_ENGINE:-}" = "1" ]; then
 			shared="$(mktemp -d)"

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Collects the results of a build done by cloud session machines
-# (scripts/cloud-shard.sh). Waits until every shard has pushed, then puts the
-# files in .standby-results/<task>/S<index>/, where scripts/merge-shards.sh
+# (framework/scripts/cloud-shard.sh). Waits until every shard has pushed, then puts the
+# files in .standby-results/<task>/S<index>/, where framework/scripts/merge-shards.sh
 # reads them, and prints one line per shard.
 #
-#   scripts/cloud-results.sh <task> <count> [seconds to wait, default 600]
+#   framework/scripts/cloud-results.sh <task> <count> [seconds to wait, default 600]
 #
 # A shard is found on the branch cloud-results/<task>/s<index> (a fresh
 # session) or on the machine slot cloud/m<index> (a reused one) once that

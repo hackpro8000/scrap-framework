@@ -1,5 +1,5 @@
 """PipelineAgent mixin: a build unit ({"type": "task"}): its commit checked
-out, scripts/standby-task.sh run as shard <shard> of <count> into
+out, framework/scripts/standby-task.sh run as shard <shard> of <count> into
 results/<task>-S<shard>/, every file there sent back (the handed-over
 objects' names.tsv first), "done", and then the unit's share of the previews."""
 import asyncio

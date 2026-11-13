@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sends a build task (scripts/send-build.sh) and reports on it as it goes,
+# Sends a build task (framework/scripts/send-build.sh) and reports on it as it goes,
 # for a session to run under its Monitor tool: every line printed here is
 # one event. Two sources feed it, so a result is never missed:
 #   - events: send-build's own lines as the coordinator streams them back
@@ -8,9 +8,9 @@
 #     folders that have landed since the last look, says when send-build has
 #     gone quiet for STALL seconds, and says when it exits, with its status.
 #
-#   scripts/watch-build.sh <commit> [upload: yes|no]
-#   PREVIEW=MinePortal,IslandPreview scripts/watch-build.sh "$(scripts/push-wip.sh)" no
-#   PREVIEW_ONLY=1 PREVIEW=MineLoop scripts/watch-build.sh <commit> no   # no layout build
+#   framework/scripts/watch-build.sh <commit> [upload: yes|no]
+#   PREVIEW=MinePortal,IslandPreview framework/scripts/watch-build.sh "$(framework/scripts/push-wip.sh)" no
+#   PREVIEW_ONLY=1 PREVIEW=MineLoop framework/scripts/watch-build.sh <commit> no   # no layout build
 
 set -uo pipefail
 

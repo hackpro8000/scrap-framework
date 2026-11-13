@@ -4,7 +4,7 @@
 # senders can deliver them at once. Machine m<i> builds shard i, from the
 # registry machines.tsv in the game's cache folder (machine, session id).
 #
-#   scripts/machine-orders.sh <task> <count> <commit> [groups, default 1]
+#   framework/scripts/machine-orders.sh <task> <count> <commit> [groups, default 1]
 #
 # With groups > 1 each group starts with a "# group <n>" line.
 set -euo pipefail

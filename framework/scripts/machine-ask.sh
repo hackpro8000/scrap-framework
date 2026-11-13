@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Posts a cloud build machine's open question where the owner's session sees
 # it at once: the branch machine-questions/m<n>, watched by
-# scripts/machine-questions.sh. A machine runs this right before it ends a
+# framework/scripts/machine-questions.sh. A machine runs this right before it ends a
 # turn with a question for the owner, then asks the question as usual.
 #
-#   scripts/machine-ask.sh "<the question, as it will be asked>"
+#   framework/scripts/machine-ask.sh "<the question, as it will be asked>"
 #
 # The machine's number comes from the seat `cloud-worker.sh join` saved;
 # without one it is posted as m0.

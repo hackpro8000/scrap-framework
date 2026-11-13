@@ -3,8 +3,8 @@
 # so which layout, how many machines, how many are up and waiting, and when
 # they started. Exits 1 when none are running.
 #
-#   scripts/standby-status.sh          # for people
-#   scripts/standby-status.sh --line   # one line for scripts:
+#   framework/scripts/standby-status.sh          # for people
+#   framework/scripts/standby-status.sh --line   # one line for scripts:
 #                                      # run=<id> layout=<L> shards=<n> ready=<k> ref=<ref>
 
 set -euo pipefail
@@ -21,7 +21,7 @@ if [ -z "${run}" ]; then
 	exit 1
 fi
 IFS=$'\t' read -r id title created status <<< "${run}"
-# Held back by GitHub over a minute (as scripts/standby-start.sh alerts).
+# Held back by GitHub over a minute (as framework/scripts/standby-start.sh alerts).
 if [ "${status}" = "queued" ] && [ $(( $(date +%s) - $(date -d "${created}" +%s) )) -ge 60 ]; then
 	holding="$(gh run list --status in_progress --limit 20 --json databaseId,workflowName \
 		--jq '[.[] | "\(.databaseId) (\(.workflowName))"] | join(", ")')"
@@ -53,5 +53,5 @@ if [ "${1:-}" = "--line" ]; then
 else
 	echo "standby run ${id}: ${layout} on ${shards} machines, ${ready} up and waiting (started ${created})"
 	echo "  ${title}"
-	echo "  send a build with: scripts/send-build.sh <commit>"
+	echo "  send a build with: framework/scripts/send-build.sh <commit>"
 fi

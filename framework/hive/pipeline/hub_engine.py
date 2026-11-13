@@ -2,7 +2,7 @@
 becomes a one-unit task of its own kind, leased like any unit (so a lost
 machine's check is taken back and dealt again) but only to a machine whose
 hello says it has cargo, g1 first. The machine checks the commit out, runs
-scripts/build-model.sh --engine, and its output streams to the session."""
+framework/scripts/build-model.sh --engine, and its output streams to the session."""
 import json
 import time
 

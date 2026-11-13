@@ -3,7 +3,7 @@
 # there, and prints the commit. Build machines use it to hand files to each
 # other and to this session through GitHub, not the coordinator's tunnel.
 #
-#   scripts/push-folder.sh <folder> <branch> <commit message>
+#   framework/scripts/push-folder.sh <folder> <branch> <commit message>
 
 set -euo pipefail
 

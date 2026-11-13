@@ -3,12 +3,12 @@
 # a Claude cloud session machine, and sends the result home by itself: no
 # coordinator, no token, no upload. The task is this checkout's own commit.
 #
-#   scripts/cloud-shard.sh <task> <index> <count> [commit]
+#   framework/scripts/cloud-shard.sh <task> <index> <count> [commit]
 #
 # It prepares the machine (scripts/machine-setup/map-build.sh), builds the
-# shard of the game's default_layout (scripts/standby-task.sh), writes build.log, parts.txt,
+# shard of the game's default_layout (framework/scripts/standby-task.sh), writes build.log, parts.txt,
 # manifest.json, costs.txt and summary.txt to cloud-results/S<index>/, then
-# commits that folder and pushes it, where scripts/cloud-results.sh collects
+# commits that folder and pushes it, where framework/scripts/cloud-results.sh collects
 # it. The objects stay on the machine.
 #
 # Without a commit it builds this checkout and pushes to the branch

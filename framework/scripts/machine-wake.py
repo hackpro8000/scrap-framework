@@ -4,11 +4,11 @@ worker again and rejoins the hub: one comment, "order: wake", on each
 machine's wake-up pull request (prs.tsv in the game's cache folder: machine,
 pull request number). Each session is subscribed to its own pull request and
 holds a standing instruction to rejoin on that comment
-(scripts/machine-prompt.py sent both).
+(framework/scripts/machine-prompt.py sent both).
 
-  scripts/machine-wake.py                 # every machine not on the hub now
-  scripts/machine-wake.py --machines 4-9,12
-  scripts/machine-wake.py --dry-run
+  framework/scripts/machine-wake.py                 # every machine not on the hub now
+  framework/scripts/machine-wake.py --machines 4-9,12
+  framework/scripts/machine-wake.py --dry-run
 
 GitHub takes about 80 new comments a minute from one account, so more than
 70 go in groups a minute apart.
@@ -21,7 +21,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hive"))
-from game_settings import FRAMEWORK, GAME_ROOT, cache_dir  # noqa: E402
+from game_settings import FRAMEWORK, GAME_ROOT, cache_dir, repository  # noqa: E402
 
 PULL_REQUESTS = os.path.join(cache_dir(), "prs.tsv")
 ROOT = str(GAME_ROOT)
@@ -76,8 +76,7 @@ def main():
 	if arguments.dry_run:
 		return 0
 
-	owner, name = subprocess.run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-		capture_output=True, text=True, cwd=ROOT, check=True).stdout.strip().split("/")
+	owner, name = repository().split("/")
 	failed = []
 	for start in range(0, len(wanted), GROUP):
 		if start:

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Makes any Ubuntu 24.04 machine with this repo checked out a build worker
 # for the coordinator, as the standby workflow's steps before "Wait for
-# tasks" make a GitHub machine one, then runs scripts/standby-agent.py. It
+# tasks" make a GitHub machine one, then runs framework/scripts/standby-agent.py. It
 # needs no GitHub secrets and does no uploads; it is admitted by a token
 # from `framework/hive/hub/client.py mint-workers <count>`. Safe to run
 # again: whatever is already there is left alone.
 #
-#   scripts/cloud-worker.sh [--detach] <agent address> <shard> <count> <token> [layout, default: the game's]
-#   scripts/cloud-worker.sh join [<machine number> <token>]
-#   scripts/cloud-worker.sh --wait [seconds]
+#   framework/scripts/cloud-worker.sh [--detach] <agent address> <shard> <count> <token> [layout, default: the game's]
+#   framework/scripts/cloud-worker.sh join [<machine number> <token>]
+#   framework/scripts/cloud-worker.sh --wait [seconds]
 #
 # Pass the token as - to read it from COORDINATOR_WORKER_TOKEN instead, so
 # it never shows in `ps`. The worker ends after 60 idle minutes, or 5 hours at
@@ -17,7 +17,7 @@
 # join makes this a numbered machine, for good: its number and lasting token
 # (framework/hive/hub/client.py machine-tokens) are saved in the clone's .git
 # folder, and a worker starts in the background that finds the coordinator's
-# address by itself (the "published" address of scripts/standby-agent.py) and
+# address by itself (the "published" address of framework/scripts/standby-agent.py) and
 # follows it when it changes. It takes units from the hub's queue as soon as
 # it connects (no seating). join without arguments starts it again from the
 # saved number and token; a worker still running is replaced. That worker ends after 12 hours, or when told to.
@@ -46,7 +46,7 @@ if [ "${1:-}" = "join" ]; then
 	# A full disk stops the worker before it can build anything. A snapshot
 	# holding the file .cold-build empties the caches too, for a cold timing.
 	if [ -f .cold-build ] || [ "$(df --output=avail -BG . | tail -n 1 | tr -dc 0-9)" -lt 8 ]; then
-		# A lane's game sits in its worktree where it sits in the checkout (scripts/standby-task.sh).
+		# A lane's game sits in its worktree where it sits in the checkout (framework/scripts/standby-task.sh).
 		rm -rf art/models/*/.cache "$(git rev-parse --absolute-git-dir)/${name}-lanes"/*"${GAME_ROOT#"$(git rev-parse --show-toplevel)"}"/art/models/*/.cache results
 	fi
 	export COORDINATOR_WORKER_TOKEN="$token"

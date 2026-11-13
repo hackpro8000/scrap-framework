@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Collects previews rendered by cloud session machines
-# (scripts/cloud-preview.sh): each pushed its share to the branch
+# (framework/scripts/cloud-preview.sh): each pushed its share to the branch
 # cloud-previews/<task>/s<index>. Waits until every branch is there, then
 # puts each model's renders beside the model, as the coordinator does:
 # art/models/<Name>/preview.png, the four turns as views.png, and the model
 # script's hash in previewed.txt. Prints one line per model with the image
 # to look at.
 #
-#   scripts/cloud-previews.sh <task> <count> [seconds to wait, default 600]
+#   framework/scripts/cloud-previews.sh <task> <count> [seconds to wait, default 600]
 set -euo pipefail
 
 task="${1:?task name required}"

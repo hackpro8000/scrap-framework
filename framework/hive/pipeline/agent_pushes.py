@@ -1,4 +1,4 @@
-"""Pushes from a build machine through GitHub (scripts/push-folder.sh): its
+"""Pushes from a build machine through GitHub (framework/scripts/push-folder.sh): its
 baked paint layers for the other machines, and a finished preview's files."""
 import os
 import shutil

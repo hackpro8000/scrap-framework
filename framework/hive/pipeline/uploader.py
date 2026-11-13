@@ -65,6 +65,21 @@ def api_key():
 	return key
 
 
+# Uploads are optional: a game with neither is built and previewed all the same.
+TURN_ON = ("to turn uploads on, set ROBLOX_API_KEY and ROBLOX_CREATOR_ID (as repository secrets for the build machines, "
+	"or in this session) and start the hub again")
+
+
+def missing():
+	"""Why uploads can't run here, in plain words; "" when they can."""
+	lacking = []
+	if not api_key():
+		lacking.append(f"no Roblox API key (ROBLOX_API_KEY, or the file {KEY_FILE})")
+	if not CREATOR_ID:
+		lacking.append("no ROBLOX_CREATOR_ID")
+	return " and ".join(lacking)
+
+
 class Throttle:
 	def __init__(self, width_path, say):
 		self.width_path, self.say = width_path, say

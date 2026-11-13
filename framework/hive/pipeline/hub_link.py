@@ -1,7 +1,7 @@
 """A session reached through git (--git-link, a part of PipelineHub): the
 hub runs on build machine 1 for a session that can't connect out
-(scripts/standby-start.sh --on-machine). It takes build tasks from the
-build-queue branch (scripts/send-build.sh posts them there; the one link
+(framework/scripts/standby-start.sh --on-machine). It takes build tasks from the
+build-queue branch (framework/scripts/send-build.sh posts them there; the one link
 that still polls) and pushes each finished task's results, objects left
 out, as one commit to build-results/coordinator."""
 import asyncio
@@ -39,6 +39,11 @@ class GitLink:
 						text = (await asyncio.to_thread(self.git, "show", f"{head}:{name}")).stdout
 						fields = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
 						if "ref" in fields and "upload-of" not in fields:
+							refused = self.refusal(fields.get("upload") != "no")
+							if refused:
+								say(f"task {identity} from the build-queue branch refused: {refused}")
+								await self.hub.emit({"type": "warning", "text": f"task {identity} refused: {refused}"})
+								continue
 							say(f"task {identity} from the build-queue branch")
 							await self.post(identity, fields["ref"], fields.get("upload") != "no")
 							await self.hub.deal()

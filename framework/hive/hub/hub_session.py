@@ -74,7 +74,8 @@ class SessionControl:
 				"queues": {task.id: len(task.queue) for task in self.tasks.values()},
 				"machines": sorted(int(machine.name[1:]) for machine in connected if machine.kind == "numbered"),
 				"lease_seconds": {"grace": self.grace, "silent": self.silent, "wedged": self.wedged},
-				"task_states": self.task_states(), "run_started": self.run_started, **self.code_state(), **self.lifetime()}))
+				"task_states": self.task_states(), "run_started": self.run_started, "notes": "".join(self.plugins.notes).strip(),
+				**self.code_state(), **self.lifetime()}))
 			return
 		if kind == "clear-tasks":
 			# Tasks no machine is working on (ALERT STRANDED_TASK); a machine
@@ -171,7 +172,7 @@ def control_signers(public_key):
 	"""An allowed-signers file holding only the session's public key."""
 	fields = public_key.split()
 	if len(fields) < 2 or not fields[0].startswith("ssh-"):
-		sys.exit("--control-key wants a public key such as scripts/coordinator.sh key prints")
+		sys.exit("--control-key wants a public key such as framework/scripts/coordinator.sh key prints")
 	path = os.path.join(tempfile.mkdtemp(prefix="control-key-"), "allowed_signers")
 	with open(path, "w") as file:
 		file.write(f"{CONTROL_NAMESPACE} {fields[0]} {fields[1]}\n")

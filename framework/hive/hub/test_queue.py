@@ -10,7 +10,7 @@ Its own cases run the hub with no plugin loaded, a made-up task kind
 registered by the test. Then every plugin game.toml's hive_plugins names
 that has a tests module (framework/hive/<name>/tests.py) adds its cases:
 its cases(harness) is given this module, for Hub, until, check, the timings
-and the real agent (AGENT, scripts/standby-agent.py). One PASS or FAIL line
+and the real agent (AGENT, framework/scripts/standby-agent.py). One PASS or FAIL line
 per case; exits 0 only when every case passes.
 """
 import asyncio
@@ -39,7 +39,7 @@ import hive_plugins  # noqa: E402
 import wire  # noqa: E402
 from units import Task  # noqa: E402
 
-# The real agent (scripts/standby-agent.py), for its heartbeat and its take/cancel.
+# The real agent (framework/scripts/standby-agent.py), for its heartbeat and its take/cancel.
 _spec = importlib.util.spec_from_file_location("agent_script", os.path.join(HERE, "..", "..", "scripts", "standby-agent.py"))
 AGENT = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(AGENT)

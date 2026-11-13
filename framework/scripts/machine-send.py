@@ -5,7 +5,7 @@ owner's own `claude -p --cloud <session>` (which, unlike a message from
 another session, wakes a machine that was paused while idle), marked as
 written by Claude on the owner's behalf.
 
-  scripts/machine-orders.sh <task> <count> <commit> | scripts/machine-send.py [--parallel N] [--only 3,7,12]
+  framework/scripts/machine-orders.sh <task> <count> <commit> | framework/scripts/machine-send.py [--parallel N] [--only 3,7,12]
 
 Reads "<session id> <message>" lines (lines starting with # are skipped),
 runs up to N senders at a time (default 4, one per CPU thread; each is a

@@ -3,13 +3,13 @@
 (framework/hive/hub/coordinator.py): it is leased one unit of a task at a
 time, builds it, and sends the results straight back, so nothing polls.
 
-  scripts/standby-agent.py <coordinator url> <Layout> <index> <count> <idle minutes> <max minutes>
+  framework/scripts/standby-agent.py <coordinator url> <Layout> <index> <count> <idle minutes> <max minutes>
 
 It proves who it is with the identity token GitHub gives this job (the
 workflow grants id-token: write); <index> names it on the hub (g<index>).
 A unit comes as {"type": "task", "id", "task", "shard", "count"} and is run
-as scripts/standby.sh runs a task: its commit checked out, then that
-commit's scripts/standby-task.sh as shard <shard> of <count>, into
+as framework/scripts/standby.sh runs a task: its commit checked out, then that
+commit's framework/scripts/standby-task.sh as shard <shard> of <count>, into
 results/<task id>-S<shard>/. Then every file there goes back to the
 coordinator, the handed-over objects' names.tsv before the objects, and a
 "done" message last; then the unit's share of the previews. Every message
@@ -32,7 +32,7 @@ sent again after a reconnect is not rebuilt: what it left is sent again.
 The machine ends after <idle minutes> without a task, at <max minutes>, or
 when the coordinator says stop.
 
-A numbered machine (scripts/cloud-worker.sh join) passes "published" as the
+A numbered machine (framework/scripts/cloud-worker.sh join) passes "published" as the
 url and 0 as the count. It reads the coordinator's address from
 address.json on the branch build-results/coordinator-address before every
 connection, so it follows a coordinator whose address changed or that was

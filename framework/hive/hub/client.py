@@ -10,7 +10,7 @@
   framework/hive/hub/client.py numbered        # the numbers of the numbered machines connected, one line
   framework/hive/hub/client.py machine-tokens <first> <last>  # no hub needed
                                               # tokens for a new pool of workers
-                                              # (scripts/cloud-worker.sh), one
+                                              # (framework/scripts/cloud-worker.sh), one
                                               # line each: m<n> <token>
   framework/hive/hub/client.py wait-machines [N] [--wait S]
                                               # returns once N machines are up
@@ -65,7 +65,7 @@ def main():
 		sys.exit(machine_tokens(int(arguments.ref), int(arguments.last or arguments.ref)))
 	url = control_url()
 	if not url:
-		print("no coordinator running (scripts/coordinator.sh start)", file=sys.stderr)
+		print("no coordinator running (framework/scripts/coordinator.sh start)", file=sys.stderr)
 		sys.exit(2)
 	if arguments.command == "status":
 		code = asyncio.run(status(url))

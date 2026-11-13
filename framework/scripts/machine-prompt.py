@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Sends one message of the owner's own to many reserved cloud build machines
-at once, from this computer's terminal. Unlike scripts/machine-send.py, the
+at once, from this computer's terminal. Unlike framework/scripts/machine-send.py, the
 message goes exactly as typed, with nothing added: run this yourself, so the
 words each machine receives are yours.
 
-  scripts/machine-prompt.py [--machines 1-100] [--parallel 4] [--clear] [--dry-run] "<message>"
-  scripts/machine-prompt.py --machines 4-9,12 - < message.txt
-  scripts/machine-prompt.py --edit --clear --machines 1-6
+  framework/scripts/machine-prompt.py [--machines 1-100] [--parallel 4] [--clear] [--dry-run] "<message>"
+  framework/scripts/machine-prompt.py --machines 4-9,12 - < message.txt
+  framework/scripts/machine-prompt.py --edit --clear --machines 1-6
 
 --edit does it all in one command: it opens the message in your editor
 ($EDITOR, else nano; the last message is kept in

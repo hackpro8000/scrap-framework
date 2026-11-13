@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Renders this shard's share of a task's previews with modelkit's own
-# renderer, no Studio or upload needed (scripts/standby-agent.py runs it once
+# renderer, no Studio or upload needed (framework/scripts/standby-agent.py runs it once
 # the shard's build result has gone, so renders never hold a build back).
 #
-#   scripts/standby-previews.sh <Name,Name,...> <index> <count> <results folder>
+#   framework/scripts/standby-previews.sh <Name,Name,...> <index> <count> <results folder>
 #
 # The shard takes every count-th name from its index and renders each from
 # its committed model.luau (assembling here would rewrite the file a layout
@@ -20,11 +20,12 @@
 # the coordinator merges the shares back into one folder. So one model's
 # renders spread over every machine, each claiming the next job as it comes
 # free. Each machine bakes only the textures it claimed first (modelkit --share-bakes, in the same run) and takes the rest from
-# the others, so no two bake the same one; scripts/standby-agent.py runs that.
+# the others, so no two bake the same one; framework/scripts/standby-agent.py runs that.
 
 set -uo pipefail
 
 source "$(dirname "$0")/lib/game.sh"
+source "$(dirname "$0")/lib/hive.sh"
 names="${1:?model names required}"
 index="${2:?shard index required}"
 count="${3:?shard count required}"
@@ -73,7 +74,21 @@ for name in "${list[@]}"; do
 	[ ! -f "${FRAMEWORK}/engine/cold-build" ] || rm -rf art/models/*/.cache
 	# The bake's time per layer goes in the log, so a build's cost can be read
 	# off the machine that paid it.
-	if MODELKIT_PROFILE=1 "${FRAMEWORK}/scripts/build-model.sh" "${model}" -- "${quality[@]}" --turntable 4 "${size[@]}" "${share[@]}" "${extra[@]}" > "${dir}/build.log" 2>&1; then
+	: > "${dir}/build.log"
+	# The engine first, a line a minute, so a cold compile (or the wait for
+	# machine 1's) isn't taken for a wedged unit. Its folder is not in git.
+	mkdir -p engine/bin
+	if ! with_ticks "${dir}/build.log" "${FRAMEWORK}/scripts/build-model.sh" --engine >> "${dir}/build.log" 2>&1; then
+		echo "FAILED" >> "${dir}/build.log"
+		continue
+	fi
+	# An item or bot whose assembled script was never committed is assembled
+	# here from its sources (a layout's is always committed: see above).
+	if [ ! -f "art/models/${model}/model.luau" ] && ! "${FRAMEWORK}/scripts/assemble-model.sh" "${model}" >> "${dir}/build.log" 2>&1; then
+		echo "FAILED" >> "${dir}/build.log"
+		continue
+	fi
+	if MODELKIT_PROFILE=1 "${FRAMEWORK}/scripts/build-model.sh" "${model}" -- "${quality[@]}" --turntable 4 "${size[@]}" "${share[@]}" "${extra[@]}" >> "${dir}/build.log" 2>&1; then
 		cp "${rendered}/preview.png" "${dir}/preview.png" 2> /dev/null || true
 		for turn in 0 1 2 3; do
 			cp "${rendered}/turntable/000${turn}.png" "${dir}/view${turn}.png" 2> /dev/null || true

@@ -28,7 +28,7 @@ def run_build(url, arguments, parser):
 	ref, why = resolve_ref(arguments.ref)
 	if not ref:
 		alert(f"ALERT BAD_REF: {arguments.ref} is not a commit the machines can fetch from GitHub ({why}) "
-			"| push it first (scripts/push-wip.sh for unfinished work) and post again")
+			"| push it first (framework/scripts/push-wip.sh for unfinished work) and post again")
 		sys.exit(1)
 	previews = [name for name in arguments.preview.split(",") if name]
 	if arguments.no_seat:

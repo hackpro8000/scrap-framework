@@ -15,14 +15,14 @@ and updated after every task. It prints each unit's result (S<i>, with the
 machine that built it) the moment it arrives, and ALERT REDEALT when the
 hub takes a unit back from a machine and gives it to another, then the upload's, and exits 0 when every machine built and every
 object uploaded. Results land in .standby-results/<task>/ for
-scripts/merge-shards.sh. With --preview, the machines also render those
+framework/scripts/merge-shards.sh. With --preview, the machines also render those
 models with modelkit; each machine's renders come back with its result,
 often before the uploads end; the hub puts them in art/models/<Name>/
 (preview.png, views.png) and each is printed as it lands.
 
 From a hub on machine 1 (--relay-results) the results come over the
 connection as files, are written here under the same paths, and an uploaded
-task is merged here (scripts/merge-shards.sh).
+task is merged here (framework/scripts/merge-shards.sh).
 
 If the connection drops mid-task (the hub restarting), `build` reconnects
 for up to 60 s and watches the same task again; it exits 3 if the task is

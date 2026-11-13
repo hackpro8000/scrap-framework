@@ -30,7 +30,7 @@ def lifetime_alert(info, now):
 	left = end - now
 	if left > LIFETIME_WARN_SECONDS:
 		return None
-	advice = "post a task to restart its idle clock" if "idle" in limit else "start a new run (scripts/standby-start.sh) before it ends"
+	advice = "post a task to restart its idle clock" if "idle" in limit else "start a new run (framework/scripts/standby-start.sh) before it ends"
 	return f"ALERT LIFETIME: the hub ends in {max(0, left) / 60:.0f}m ({limit}) | {advice}"
 
 
@@ -38,7 +38,8 @@ async def status(url):
 	async with control(url, {"type": "status"}) as socket:
 		answer = json.loads(await socket.recv())
 	up = answer["up"]
-	print(f"run={answer['run']} machines={answer['count']} up={len(up)} tasks={len(answer['tasks'])} code={answer.get('code') or '?'}")
+	print(f"run={answer['run']} machines={answer['count']} up={len(up)} tasks={len(answer['tasks'])} code={answer.get('code') or '?'}"
+		+ (f" {answer['notes']}" if answer.get("notes") else ""))
 	roster = answer.get("roster", [])
 	if roster:
 		print("roster: " + " ".join(f"{entry['name']}={roster_state(entry)}" for entry in roster))
@@ -97,7 +98,7 @@ async def clear_tasks(url):
 
 
 async def mint_workers(url, count):
-	"""One line per new worker: <n> <count> <token>, for scripts/cloud-worker.sh
+	"""One line per new worker: <n> <count> <token>, for framework/scripts/cloud-worker.sh
 	(the hub's answer names each worker's number "shard")."""
 	async with control(url, {"type": "mint-workers", "count": count}) as socket:
 		answer = json.loads(await socket.recv())
@@ -140,10 +141,10 @@ def open_workers():
 
 def machine_tokens(first, last):
 	"""One line per numbered machine: m<n>, a tab, its lasting token, made
-	from the worker key on this computer (scripts/coordinator.sh worker-key)."""
+	from the worker key on this computer (framework/scripts/coordinator.sh worker-key)."""
 	path = os.path.join(cache_dir(), "worker-key")
 	if not os.path.isfile(path):
-		print("no worker key on this computer (scripts/coordinator.sh worker-key makes one)", file=sys.stderr)
+		print("no worker key on this computer (framework/scripts/coordinator.sh worker-key makes one)", file=sys.stderr)
 		return 1
 	key = open(path).read().strip()
 	for machine in range(first, last + 1):

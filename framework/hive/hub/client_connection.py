@@ -12,7 +12,7 @@ import websockets
 
 from hub_config import CONTROL_NAMESPACE, ROOT, SCRIPTS, STATE, cache_dir
 
-# Made once by scripts/coordinator.sh key; never leaves this computer.
+# Made once by framework/scripts/coordinator.sh key; never leaves this computer.
 CONTROL_KEY = os.path.join(cache_dir(), "control-key")
 MAX_MESSAGE = 64 * 1024 * 1024
 
@@ -53,7 +53,7 @@ def sign(nonce):
 	if not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{64}", nonce):
 		raise SystemExit("the coordinator sent a challenge that is not a 64-character hex nonce; not signing it")
 	if not os.path.isfile(CONTROL_KEY):
-		raise SystemExit("the coordinator wants a signed answer and there is no key here (scripts/coordinator.sh key)")
+		raise SystemExit("the coordinator wants a signed answer and there is no key here (framework/scripts/coordinator.sh key)")
 	signed = subprocess.run(["ssh-keygen", "-q", "-Y", "sign", "-f", CONTROL_KEY, "-n", CONTROL_NAMESPACE],
 		input=nonce.encode(), capture_output=True)
 	if signed.returncode != 0:
@@ -102,7 +102,7 @@ async def control(url, request, **options):
 		code = http_status(error)
 		answered = f"answered HTTP {code}" if code else f"could not be reached ({error})"
 		alert(f"ALERT TUNNEL_DOWN: the coordinator's control address {url} {answered} "
-			"| machine 1's tunnel or coordinator is down; check the run (scripts/standby-status.sh) and start a new one if it stays down")
+			"| machine 1's tunnel or coordinator is down; check the run (framework/scripts/standby-status.sh) and start a new one if it stays down")
 		raise SystemExit(2)
 	try:
 		yield connection

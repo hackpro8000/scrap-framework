@@ -43,7 +43,7 @@ def ensure_tools():
 
 def kill_tree(pid):
 	"""Kills a unit's process and everything under it. Its own process group
-	is not enough: scripts/standby-task.sh starts its lanes with setsid, so
+	is not enough: framework/scripts/standby-task.sh starts its lanes with setsid, so
 	every descendant's group goes too (found through /proc)."""
 	parents = {}
 	for entry in os.listdir("/proc"):
@@ -74,7 +74,7 @@ def kill_tree(pid):
 
 def newest_log(path):
 	"""The log a stage wrote to last: its own, or in a build a lane's
-	(scripts/standby-task.sh writes lane-<n>.log beside build.log). The
+	(framework/scripts/standby-task.sh writes lane-<n>.log beside build.log). The
 	memory probe's probe.log is left out: it writes every 10 s, hung or not."""
 	best, newest = path, -1.0
 	for candidate in [path, *glob.glob(os.path.join(os.path.dirname(path), "lane-*.log"))]:
@@ -102,7 +102,7 @@ WORKER_TOKEN = ""  # a cloud worker's minted token, taken from the environment b
 
 
 def identity_token():
-	# A worker that is not a GitHub machine (scripts/cloud-worker.sh) shows its
+	# A worker that is not a GitHub machine (framework/scripts/cloud-worker.sh) shows its
 	# minted token; taken out of the environment so builds never see it.
 	if WORKER_TOKEN:
 		return "worker:" + WORKER_TOKEN

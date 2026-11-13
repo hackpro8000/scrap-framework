@@ -1,5 +1,5 @@
 """Takes one commit's files from GitHub, for files that travel between build
-machines and this session as commits (scripts/push-folder.sh) instead of
+machines and this session as commits (framework/scripts/push-folder.sh) instead of
 through the coordinator's tunnel."""
 import os
 import shutil
