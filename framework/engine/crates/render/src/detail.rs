@@ -4,8 +4,8 @@
 
 use std::cell::Cell;
 
-use crate::image::Image;
-use crate::mesh::{add, cross, dot, scale, sub, Mesh, Vec3};
+use modelkit_kernel::image::Image;
+use modelkit_kernel::mesh::{add, cross, dot, scale, sub, Mesh, Vec3};
 use crate::render;
 
 // Least share of a texture's width an eye preview keeps, however far it is.

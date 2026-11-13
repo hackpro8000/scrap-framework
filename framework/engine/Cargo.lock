@@ -489,8 +489,26 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "mlua",
+ "modelkit-anim",
+ "modelkit-gpu",
  "modelkit-kernel",
+ "modelkit-render",
  "png",
+]
+
+[[package]]
+name = "modelkit-anim"
+version = "0.1.0"
+dependencies = [
+ "modelkit-kernel",
+]
+
+[[package]]
+name = "modelkit-gpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "modelkit-kernel",
  "pollster",
  "wgpu",
 ]
@@ -500,6 +518,14 @@ name = "modelkit-kernel"
 version = "0.1.0"
 dependencies = [
  "png",
+]
+
+[[package]]
+name = "modelkit-render"
+version = "0.1.0"
+dependencies = [
+ "modelkit-anim",
+ "modelkit-kernel",
 ]
 
 [[package]]

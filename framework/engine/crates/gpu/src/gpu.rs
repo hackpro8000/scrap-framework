@@ -15,9 +15,9 @@ use std::sync::{Mutex, OnceLock};
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::kernel::Texel;
-use crate::mesh::Vec3;
-use crate::progress;
+use modelkit_kernel::kernel::Texel;
+use modelkit_kernel::mesh::Vec3;
+use modelkit_kernel::progress;
 
 // Texels per submission. A GPU driver resets a job that runs too long, so big
 // textures go up in slices rather than one dispatch.
@@ -145,7 +145,7 @@ struct Slot {
 	_pad: [u32; 2],
 }
 
-pub(crate) fn f32s(v: Vec3) -> [f32; 3] {
+pub fn f32s(v: Vec3) -> [f32; 3] {
 	v.map(|c| c as f32)
 }
 

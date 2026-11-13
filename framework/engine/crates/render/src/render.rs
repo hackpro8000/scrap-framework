@@ -3,7 +3,7 @@
 // can orbit the model (turntables), and light is soft since the textures
 // carry their own painted shading.
 
-use crate::mesh::{add, cross, dot, normalize, scale, sub, Corner, Mesh, Vec3};
+use modelkit_kernel::mesh::{add, cross, dot, normalize, scale, sub, Corner, Mesh, Vec3};
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::anim::Pose;
-use crate::image::Image;
-use crate::Part;
+use modelkit_anim::anim::Pose;
+use modelkit_kernel::image::Image;
+use modelkit_kernel::part::Part;
 
 const BACKGROUND: [f32; 3] = [0.36, 0.38, 0.42];
 const SUPERSAMPLE: usize = 2;

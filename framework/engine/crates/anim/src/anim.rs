@@ -3,8 +3,8 @@
 // ease along a curve, so a spin is just a big angle; export resamples every
 // frame, since a glTF quaternion can't turn past 180 degrees in one step.
 
-use crate::mesh::{add, sub, Vec3};
-use crate::Bone;
+use modelkit_kernel::mesh::{add, sub, Vec3};
+use modelkit_kernel::part::Bone;
 
 pub const FPS: f64 = 30.0;
 

@@ -44,18 +44,14 @@
 // below; this engine does the heavy, generic work (triangulating, export,
 // rendering) so scripts change without a recompile.
 
-mod anim;
 mod bake;
 mod brush;
 mod cache;
 mod coat;
-mod detail;
 mod glb;
 mod hand;
-mod gpu;
 mod marks;
 mod work;
-mod render;
 mod scene;
 
 use std::cell::{Cell, RefCell};
@@ -70,6 +66,10 @@ use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
 // The kernel crate's modules, named at the root so `crate::mesh::...` and the
 // like keep resolving in every module of this crate.
 use modelkit_kernel::{image, kernel, mesh, part, progress};
+// The plugin crates' modules, named at the root the same way.
+use modelkit_anim::anim;
+use modelkit_gpu::gpu;
+use modelkit_render::{detail, render};
 
 use image::Image;
 use mesh::{dot, scale, sub, Face, Mesh};
