@@ -493,6 +493,7 @@ dependencies = [
  "modelkit-kernel",
  "modelkit-render",
  "modelkit-texels",
+ "png",
  "sh-paint",
  "sh-shading",
 ]

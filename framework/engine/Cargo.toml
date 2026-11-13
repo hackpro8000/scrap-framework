@@ -17,6 +17,7 @@ bytemuck = { version = "1.25", features = ["derive"] }
 
 [dependencies]
 modelkit-kernel = { path = "crates/kernel" }
+png = { workspace = true }
 modelkit-anim = { path = "crates/anim" }
 modelkit-render = { path = "crates/render" }
 modelkit-cache = { path = "crates/cache" }
