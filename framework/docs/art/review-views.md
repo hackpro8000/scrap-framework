@@ -5,7 +5,10 @@ object it judges from the same fixed set of views, both alone and, when the
 object belongs to a map, standing in that map. The critic also gets a list
 of every object with what it is and what it is for. It checks that each
 object looks like its description and runs every rule in
-`docs/art/critic-rules.md` on it.
+`framework/docs/art/critic-rules.md` and the game's style rules
+(`art/style/critic-style.md`) on it. Sizes against the player use the
+character capsule and camera height in `game.toml` (`character_width`,
+`character_height`, `camera_height`).
 
 ## The object list
 
@@ -15,9 +18,9 @@ placed object in the layout, one entry per model or slab label. Two fields
 join the plan's `name`, `at`, `size` and `note`:
 
 - `looks`: what it objectively looks like, in plain words a stranger could
-  check against a picture. Material, shape, condition, colour. "A rusted
-  steel oil drum, ribbed, standing upright, lid on."
-- `purpose`: what it is for in the game or the scene. "Clutter by the shop
+  check against a picture. Material, shape, condition, colour. "A steel oil
+  drum, ribbed, standing upright, lid on."
+- `purpose`: what it is for in the game or the scene. "Clutter by a shop
   door: says the shop sells supplies."
 
 The critic answers every entry, so none is skipped: does the object match
@@ -35,7 +38,7 @@ ground sheet at its base, so contact and floating still show.
 | 1-6 | **Square-on sides**: front, back, left, right, top, bottom | Orthographic, fitted to `B`, 1-stud grid | Sizes and ratios, alignment, symmetry, holes and missing caps underneath |
 | 7-10 | **Three-quarter**: the four corners | 45° round from each side, 30° above level, framing `B` | How the form reads, silhouette, primitives, detail hierarchy |
 | 11-12 | **Parts**: two three-quarter corners (front-left, back-right) | As 7-10, each part a flat colour | Which part is which, parts fused or split |
-| 13-16 | **Game camera, near**: front, back, left, right | A player standing 3 studs from the object's face, the camera 12.5 studs behind the player's head and looking at it (Roblox's default third-person camera; head at 5 studs) | What a player sees up close: wear, brushwork, scale against the capsule |
+| 13-16 | **Game camera, near**: front, back, left, right | A player standing 3 studs from the object's face, the camera 12.5 studs behind the player's head and looking at it (Roblox's default third-person camera; head at `camera_height` studs) | What a player sees up close: wear, brushwork, scale against the capsule |
 | 17-18 | **Game camera, far**: the two front corners | The player 25 studs away | Silhouette and readability from across a space |
 | 19-22 | **Ground level**: front, back, left, right | 0.3 studs above the ground, at a distance of `R` + 4, looking level along the base | Floating, sinking, gaps under feet, contact shadows lifted off the ground |
 | 23+ | **Every part close**: one per object-list entry | A close-up framing that part (radius 1.3 × its own largest half-size), from the side that faces most toward the front | Each part judged at full detail, so nothing is missed in a crowded view |
@@ -58,15 +61,15 @@ everything nearby.
 | M2-M3 | **Neighbours**: the two front corners | Three-quarter as views 7–10, framing everything within 10 studs of `B` | Scale against neighbours, colour leaks between neighbours, clutter by rule |
 | M4 | **The approach** | The game camera from the nearest walkable path, at the distance a player first sees it, up to 40 studs | First impression; whether it faces the way players come |
 | M5-M8 | **Ground level in place**: front, back, left, right | As views 19–22, on the map's real ground | Contact with the real terrain, shade sheets lifted or sunk, things to trip over |
-| M9 | **From afar** | The game camera from the farthest spot players normally see it from (the hub centre or a yard gate, whichever is farther), when that is over 60 studs | Silhouette and landmark readability at distance |
+| M9 | **From afar** | The game camera from the farthest spot players normally see it from (a central plaza or an entrance, whichever is farther), when that is over 60 studs | Silhouette and landmark readability at distance |
 
 ## A whole map
 
 A map is reviewed in two layers.
 
-1. **Object critics.** The object list is split into scopes: a hub, each
-   yard, each rough-edge sector, or about 15 objects each, whichever is
-   smaller. Each scope gets its own fresh critic, its slice of the object
+1. **Object critics.** The object list is split into scopes: each district
+   of the map (a central area, each player area, each stretch of edge), or
+   about 15 objects each, whichever is smaller. Each scope gets its own fresh critic, its slice of the object
    list, and views 1–22, the close-ups and M1–M9 for every object in it.
    A critic judges only its scope, but names a defect it sees outside it in
    one line, for the scope that owns it.
@@ -78,13 +81,13 @@ A map is reviewed in two layers.
    - **Spawn look-round**: the game camera at the spawn point, turned to
      each of the eight compass points.
    - **Walked routes**: the game camera every 20 studs along each main route
-     (spawn to every yard gate, the shop, the stage, the tinkerer), facing
+     (spawn to every entrance and every place players are sent), facing
      along the route.
-   - **Edges**: the game camera at each yard gate and every 45° round the
-     island's rim, looking outward and back inward.
+   - **Edges**: the game camera at each entrance and every 45° round the
+     map's rim, looking outward and back inward.
 
    The map critic judges what no single object critic can see: layout,
-   paths and clearances for the 4 × 5.5 capsule, repetition across the map,
+   paths and clearances for the character capsule, repetition across the map,
    orientation to the map's shape, sightlines and landmarks, and the rough
    edge.
 
@@ -93,5 +96,5 @@ A map is reviewed in two layers.
 At about 24 views per object plus close-ups, a review renders hundreds of
 images for a map. Renders are spread over every build machine with
 `--renders i/n`, and each critic's views are laid out in atlases
-(`scripts/critic-atlas.sh`) under 1560 pixels a side, about 16 tiles each.
+(`framework/scripts/critic-atlas.sh`) under 1560 pixels a side, about 16 tiles each.
 An object critic reads its scope in a few atlases, not one image at a time.

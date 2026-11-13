@@ -1,45 +1,42 @@
 # Shapes to build from
 
-Read this before drafting a model (`docs/art/pipeline.md`, "First build"). Reach
-for an existing shape before writing vertices by hand, and open the example
-model to see it in use. Counts are how many sources use each one today.
+Read this before drafting a model (`framework/docs/art/pipeline.md`, "First build"). Reach
+for an existing shape before writing vertices by hand, and open a model that
+uses it to see it in use. A game's shared model code may list more helpers,
+or use other names; check its own docs first.
 
-## Shared helpers (`art/src/common.luau`, in every item and bot)
+## Shared helpers (the game's shared model code, in every item and bot)
 
-| Helper | Makes | Examples |
-| --- | --- | --- |
-| `box(mesh, cx, cy, cz, sx, sy, sz)` | axis-aligned box [72] | ArenaDrone, BigSpanner, BillboardFrame |
-| `cylinder(mesh, cx, cy, cz, r, length, axis, sides)` | cylinder along x, y or z [57] | Barrels, BentBolt |
-| `sphere(mesh, cx, cy, cz, rx, ry, rz, rings, sides)` | squashable UV sphere [21] | Zapper, BuildBay |
-| `ring(mesh, cx, cy, cz, inner, outer, depth, axis, sides)` | washer: rims, hubs, clamps [42] | ArenaDrone, Barrels |
-| `bolt(mesh, cx, cy, cz, axis, size)` | hex bolt head on a flat face [23] | Bruiser, CapsuleRefurbished |
-| `stud(mesh, x, y, z, nx, ny, nz, size)` | bolt head on a curved face | Zapper, GearPanel |
-| `strut(mesh, x0, y0, z0, x1, y1, z1, thick)` | square beam between two points: limbs, antennae [42] | BillboardFrame, all bots |
-| `tube(mesh, points, radius, sides)` | round tube along points, capped [37] | BentBolt, all bots |
-| `arc(cx, cz, radius, a0, a1, steps)` | points on an arc, for `plate` outlines | SimpleCar |
-| `plate(mesh, outline, y, depth, bevel)` | any flat silhouette, bevelled: signs, blades, brackets | BigSpanner, SimpleCar |
-| `sheet(mesh, axis, at, sign, a0, a1, z0, z1, thick, boltSize)` | bolted panel on a box side | Bruiser, JunkrotDingDingDingDongo |
-| `cornerBracket(mesh, x, y, sx, sy, z, height, size)` | angle bracket round a box corner | Bruiser, Scrapper |
-| `gear(mesh, cx, cy, cz, radius, thick, teeth, axis)` | spur gear with shaft hole [10] | GearPanel, GoldenCog |
-| `belt(mesh, axis, ax, ay, az, ra, bx, by, bz, rb, thick)` | drive belt round two pulleys | bots |
-| `engine(mesh, cx, cy, cz, size)` | small finned engine block | bots |
-| `exhaust(mesh, points, radius)` | pipe ending in a sooty flared lip | bots, ScrapTreeExhaust |
-| `rope(mesh, points, radius)` / `lashing(...)` | twisted rope / rope round a box | Zapper / Bruiser |
-| `part(name, bone, color, build, ...)` | adds a part with its look | everything |
-| `chunkedPart(...)` | large meshes split into texture-sized chunks | IslandStudy, ShopConceptContainer |
-| `finishParts()` | shades parts with each other as occluders, then adds them | everything |
+| Helper | Makes |
+| --- | --- |
+| `box(mesh, cx, cy, cz, sx, sy, sz)` | axis-aligned box |
+| `cylinder(mesh, cx, cy, cz, r, length, axis, sides)` | cylinder along x, y or z |
+| `sphere(mesh, cx, cy, cz, rx, ry, rz, rings, sides)` | squashable UV sphere |
+| `ring(mesh, cx, cy, cz, inner, outer, depth, axis, sides)` | washer: rims, hubs, clamps |
+| `bolt(mesh, cx, cy, cz, axis, size)` | hex bolt head on a flat face |
+| `stud(mesh, x, y, z, nx, ny, nz, size)` | bolt head on a curved face |
+| `strut(mesh, x0, y0, z0, x1, y1, z1, thick)` | square beam between two points: limbs, antennae |
+| `tube(mesh, points, radius, sides)` | round tube along points, capped |
+| `arc(cx, cz, radius, a0, a1, steps)` | points on an arc, for `plate` outlines |
+| `plate(mesh, outline, y, depth, bevel)` | any flat silhouette, bevelled: signs, blades, brackets |
+| `sheet(mesh, axis, at, sign, a0, a1, z0, z1, thick, boltSize)` | bolted panel on a box side |
+| `cornerBracket(mesh, x, y, sx, sy, z, height, size)` | angle bracket round a box corner |
+| `gear(mesh, cx, cy, cz, radius, thick, teeth, axis)` | spur gear with shaft hole |
+| `belt(mesh, axis, ax, ay, az, ra, bx, by, bz, rb, thick)` | drive belt round two pulleys |
+| `rope(mesh, points, radius)` / `lashing(...)` | twisted rope / rope round a box |
+| `part(name, bone, color, build, ...)` | adds a part with its look |
+| `chunkedPart(...)` | large meshes split into texture-sized chunks |
+| `finishParts()` | shades parts with each other as occluders, then adds them |
 
-## Edit Mesh (`art/src/shared/EditMesh.luau` + `EditShapes.luau` + `EditOps.luau`, by `-- include:`)
+## Edit Mesh (`EditMesh.luau` + `EditShapes.luau` + `EditOps.luau`, by `-- include:`)
 
 Quad meshes you can select from and reshape. Use them for organic or
-sculpted forms (the junkrots are built this way).
+sculpted forms.
 
 Shapes: `lattice`, `box`, `grid`, `disk`, `circle`, `cylinder`, `cone`,
 `sphere`, `capsule`, `torus`, `tube`, `prism`, `wedge`, `arch`, `spin`
 (lathe a profile), `sweep` (profile along a path, with scale and twist),
-`coil`. Examples: JunkrotKit and JunkrotScrap (`spin`, `sweep`),
-JunkrotRusteliRustela (`arch`, `tube`), JunkrotPressurwashoSprizzo (`coil`,
-`torus`), JunkrotHolofonoShimmerra (`sphere`, `capsule`).
+`coil`.
 
 Operations (`EditOps.luau`, header lists them all): `extrude`, `inset`,
 `loopCut`, `subdivide`, `smoothSubdivide`, `bridge`, `bridgeFaces`, `bevel`,

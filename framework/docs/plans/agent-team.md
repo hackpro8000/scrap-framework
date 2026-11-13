@@ -1,6 +1,6 @@
 # Agent team
 
-Status: design, shaped in conversation on 2026-11-11. The first version is built, uncommitted: the fixed core and playbook in `docs/team/`, the role definitions in `.claude/agents/`, and `scripts/agent-stats.sh` and `scripts/agent-watch.sh`. Not yet piloted on real work. The measurements behind it are in `agent-team-findings.md`.
+Status: design, shaped in conversation on 2026-11-11. The first version is built, uncommitted: the fixed core and playbook in `docs/team/`, the role definitions in `.claude/agents/`, and `framework/scripts/agent-stats.sh` and `framework/scripts/agent-watch.sh`. Not yet piloted on real work. The measurements behind it are in `agent-team-findings.md`.
 
 ## Goal
 
@@ -130,7 +130,7 @@ The user's idea: cloud session machines join the build coordinator directly, so 
 ## Open decisions
 
 1. Rule changes: applied and reported, or asked first? (The decision rule above would settle it: objective ones automatic, subjective ones asked.)
-2. Do the existing rules in the two `CLAUDE.md` files and `docs/art/pipeline.md` move into the playbook, or stay fixed? (Settled 2026-11-11: they stay fixed, and the user removed the global file's delegation rule; the playbook now governs delegation.)
+2. Do the existing rules in the two `CLAUDE.md` files and `framework/docs/art/pipeline.md` move into the playbook, or stay fixed? (Settled 2026-11-11: they stay fixed, and the user removed the global file's delegation rule; the playbook now governs delegation.)
 3. A ceiling on parallel workers or cost.
 4. How long the team waits before treating the user as away. Suggested: 10 minutes when work is blocked on the answer.
 5. Whether the team may add agent definitions freely, or only uncommitted until approved.

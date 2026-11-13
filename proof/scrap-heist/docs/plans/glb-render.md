@@ -3,18 +3,18 @@
 State file for this task (shape: long, two parallel lanes). Any session can
 pick it up from here. Goal and design: build each object once to a `.glb`,
 then render every review view from the saved files, never re-baking
-(`docs/art/review-views.md`). The renderer is our own
-`tools/modelkit/src/render.rs`.
+(`framework/docs/art/review-views.md`). The renderer is our own
+`framework/engine/src/render.rs`.
 
 Hard rule: nothing is compiled, built or rendered on the user's computer, and
 no build cache is kept there. Code is edited locally; the Lead pushes a
-snapshot (`scripts/push-wip.sh`) and runs it on the build machines. Subagents
+snapshot (`framework/scripts/push-wip.sh`) and runs it on the build machines. Subagents
 never push or commit.
 
 ## Lanes
 
-**Lane A, GLB in** (`tools/modelkit/src/glb.rs`, `tools/modelkit/src/main.rs`,
-new `tools/modelkit/src/scene.rs` if wanted):
+**Lane A, GLB in** (`framework/engine/src/glb.rs`, `framework/engine/src/main.rs`,
+new `framework/engine/src/scene.rs` if wanted):
 1. Read a `.glb` that `glb::write` made back into `Part`s: meshes, texture
    coordinates, normals, textures, emissive, see-through, bones posed at rest.
 2. Render-only mode: `modelkit --render <a.glb> [<b.glb> ...] --out <dir>`
@@ -28,7 +28,7 @@ new `tools/modelkit/src/scene.rs` if wanted):
    render each of the build's views both ways and log
    `GLB_CHECK <view> max=<0-255> mean=<x> direct=<s> glb=<s>`.
 
-**Lane B, faster drawing** (`tools/modelkit/src/render.rs` only):
+**Lane B, faster drawing** (`framework/engine/src/render.rs` only):
 1. Screen tiles drawn on every core (`std::thread::scope`, no new crate).
 2. Frustum culling: whole parts outside the view are skipped before their
    triangles are walked (bounding spheres; `in_view` exists for eyes).
@@ -59,7 +59,7 @@ views plus `--glb-check --render-check`:
 - Mip levels stored beside each `.glb` and loaded per view (streaming).
 - Saved GLBs keyed by source fingerprint on the machines; in-map views load
   only neighbours in range.
-- The review view generator (`docs/art/review-views.md`).
+- The review view generator (`framework/docs/art/review-views.md`).
 - Instancing of repeated props; occlusion culling.
 
 ## Progress

@@ -1,6 +1,6 @@
 # Team core
 
-Only the user changes this file. The team reads it and never edits it; a hook asks the user before any edit to it. Everything the team may change lives in `playbook.md`. The design and the measurements behind both are in `docs/plans/agent-team.md` and `docs/plans/agent-team-findings.md`.
+Only the user changes this file. The team reads it and never edits it; a hook asks the user before any edit to it. Everything the team may change lives in `playbook.md`. The design and the measurements behind both are in `framework/docs/plans/agent-team.md` and `framework/docs/plans/agent-team-findings.md`.
 
 ## Goal
 
@@ -16,7 +16,7 @@ The team always looks for a faster way to do its work, and never accepts one tha
 
 ## Limits
 
-- `ROADMAP.md`, the two `CLAUDE.md` files and `docs/art/pipeline.md` stay in force. The playbook works inside them.
+- `ROADMAP.md`, the two `CLAUDE.md` files and `framework/docs/art/pipeline.md` stay in force. The playbook works inside them.
 - Nothing is committed, pushed, published, uploaded or deleted unless the user asked for that action. Subagents never take those actions.
 - Nothing that could start billing, and no new account or sign-up, without the user.
 - No heavy builds on the user's computer; they go to the build machines.
@@ -38,7 +38,7 @@ The team always looks for a faster way to do its work, and never accepts one tha
 
 - The pass bar for a task is written before work starts and is not changed to fit the result.
 - A pass is decided by a script where one can decide it, and otherwise by a checker with a fresh context who did not do the work.
-- The team does not edit the scripts that score it (`scripts/agent-stats.sh`, `scripts/agent-watch.sh`) during a task they are scoring.
+- The team does not edit the scripts that score it (`framework/scripts/agent-stats.sh`, `framework/scripts/agent-watch.sh`) during a task they are scoring.
 
 ## The observer
 

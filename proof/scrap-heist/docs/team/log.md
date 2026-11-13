@@ -22,7 +22,7 @@ An action seen twice is named here; by the third time it is replaced.
 
 | Action | Seen | Replaced by | Saving |
 |---|---|---|---|
-| The `jq` one-liner for agent time and tokens | many, 2026-11-11 | `scripts/agent-stats.sh` | one command, same numbers |
+| The `jq` one-liner for agent time and tokens | many, 2026-11-11 | `framework/scripts/agent-stats.sh` | one command, same numbers |
 | Agents losing a step to the hook that blocks `grep`/`sed` | 3 agents, 2026-11-11 | one line in every agent definition | a step or two per agent |
 | "N of M agents back" status messages | many, 2026-11-11 | one report per round | fewer turns |
 

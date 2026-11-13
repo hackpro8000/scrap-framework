@@ -1,8 +1,8 @@
 # Agent team: what was measured
 
-Status: measurements from 2026-11-11, taken while planning `agent-team.md`. Every number is a single sample unless it says otherwise, so a gap of a second or two is noise. Costs are estimates at API list rates (table dated 2026-10-06); on a subscription the same ratios apply to usage limits.
+Status: measurements from 2026-11-11, taken on Scrap Heist while planning `agent-team.md`. Every number is a single sample unless it says otherwise, so a gap of a second or two is noise. Costs are estimates at API list rates (table dated 2026-10-06); on a subscription the same ratios apply to usage limits.
 
-Times and tokens for subagents come from each agent's own log, read with `scripts/agent-stats.sh`, so the main session's reaction time is not in them.
+Times and tokens for subagents come from each agent's own log, read with `framework/scripts/agent-stats.sh`, so the main session's reaction time is not in them.
 
 ## 1. Starting a subagent
 
@@ -33,7 +33,7 @@ Task: find two functions and answer four questions about them. Three set-ups on 
 | Same tuned brief on `minimal-reader` | 7–8 s | 2 | about 17,600 | 3 of 3 |
 
 - The brief sets the time (about 4 times faster) because it removes searching. The tool list sets the tokens (about 9 times fewer on top) because every step re-reads the agent's whole context.
-- The plain brief cost accuracy on the small model: Haiku took the generated copies in `art/models` for the source of `chunkedPart` and missed `art/src/common.luau:728`.
+- The plain brief cost accuracy on the small model: Haiku took the generated copies in `art/models` for the source of `chunkedPart` and missed the real one in the game's shared model code under `art/src`.
 - Plain-brief reports were three to six times longer.
 - The pointers came from one `rg` by the main session, about a second of work.
 
@@ -76,7 +76,7 @@ Task: fix two bugs in a 27-line Luau module so its test passes. All 13 runs pass
 
 ## 6. Cloud sessions
 
-This session runs on the user's own computer (bridge environment "Death-Machine": AMD Athlon 200GE, 2 cores / 4 threads, 29 GB, no Nvidia GPU). A cloud session gets its own machine.
+This session ran on the user's own computer (2 cores / 4 threads, no Nvidia GPU). A cloud session gets its own machine.
 
 ### Start-up and cost
 
@@ -129,7 +129,7 @@ This session runs on the user's own computer (bridge environment "Death-Machine"
 - `claude --cloud "<text>" --model haiku` creates a cloud session and exits in about 6 s, printing the session id.
 - It refuses without a terminal, so a script needs a pseudo-terminal (`script -qfc '...' /dev/null`), and it must start from a folder that is already trusted.
 - It attaches the folder's repo and names an outcome branch.
-- It cannot choose the cloud environment: `--environment` accepts only self-hosted `ccpool_...` ids. The one session made this way landed in the `google-classroom` environment.
+- It cannot choose the cloud environment: `--environment` accepts only self-hosted `ccpool_...` ids. The one session made this way landed in an unrelated environment.
 
 ### Terms
 
@@ -140,7 +140,7 @@ A docs lookup of the cloud-session pages and Anthropic's Consumer Terms, Commerc
 - 20 GitHub `ubuntu-24.04` runners, 4 cores and 16 GB each. The repo is public.
 - GitHub's limits page: 20 concurrent jobs on Free, 40 on Pro, 60 on Team, 500 on Enterprise; 6 hours per job; 256 jobs per matrix.
 - The coordinator listens on port 8765 and was up over a Cloudflare quick tunnel, whose address changes each start. It admits a machine only with GitHub's identity token for the standby workflow.
-- The Tailscale public tunnel `death-machine.tail4967ce.ts.net:443` forwards to port 9876, where nothing listens.
+- The Tailscale public tunnel on the user's computer forwarded to a port where nothing listened.
 - Idle capacity already paid for: stroke laying uses one core of four for about 35% of a cold map build, and two machines with equal work took 134 s and 271 s.
 
 ## 8. Model prices used for the estimates

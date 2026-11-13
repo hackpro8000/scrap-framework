@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/scripts/ensure-tools.sh\" >/dev/null || true",
+            "command": "\"$CLAUDE_PROJECT_DIR/framework/scripts/ensure-tools.sh\" >/dev/null || true",
             "timeout": 120
           }
         ]
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'If this message points out a defect in a model that the critic did not list, follow \"When the critic misses something\" in docs/art/pipeline.md in this turn, without being asked.'"
+            "command": "echo 'If this message points out a defect in a model that the critic did not list, follow \"When the critic misses something\" in framework/docs/art/pipeline.md in this turn, without being asked.'"
           }
         ]
       }
@@ -44,7 +44,7 @@
   },
   "permissions": {
     "allow": [
-      "Bash(scripts/cloud-worker.sh:*)",
+      "Bash(framework/scripts/cloud-worker.sh:*)",
       "ArtifactComments"
     ]
   }

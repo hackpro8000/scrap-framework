@@ -1,6 +1,6 @@
 # Map changes
 
-What Tristen doesn't like about the current Server Map and wants changed.
+What the user doesn't like about the current Server Map and wants changed.
 Each item is in their words first, then what it means in the map (layout
 file, model, area) once that's pinned down. Items stay open until the change
 is built and approved.
@@ -88,7 +88,7 @@ is built and approved.
      hundredths of a stud off what holds them, plus the critic rule.
    - In progress: the top barrel stands at `FLOOR + BARREL_HIGH` on the
      rims, with the lower barrels' bungs turned out from under it
-     (`barrel(..., bungTurn)`). `tools/modelcheck/check.luau` now reports
+     (`barrel(..., bungTurn)`). `framework/modelcheck/check.luau` now reports
      `resting <gap> above: A on B` for any piece hovering 0.03-0.15 over the
      pieces under it.
 
@@ -106,7 +106,7 @@ is built and approved.
      stand on the same spots turned with their yard (Yard1: -67.5, as its
      YardSpot); the map's copies were the mis-turned ones (Yard1: 180).
 
-9. **3D text needs work.** For another session. Remind Tristen when this
+9. **3D text needs work.** For another session. Remind the user when this
    list is done.
 
 10. **Pipes run straight, turn only at right angles.** "All pipes must
