@@ -135,6 +135,8 @@ Reasoned from reading the code; nothing was compiled. Some function bodies were 
 - **Starter builds on the style-free engine.** `starter.yml` built `ExampleCrate` with an engine that lists no plugins: flat colour only.
 - **Style kits.** Helpers in `framework/art/lib` are mechanics only; finishing, rusting and look-setting live in each game's `art/style`. Contract in `framework/art/lib/README.md`: a kit defines `WARP`, `SMOOTH_ANGLE`, `TEXTURE` and provides `setLook` and `finishParts`. All 209 Scrap Heist model scripts assemble byte-identical.
 - **Hive split.** `framework/hive/hub` and `agent` are generic (connections, leases, re-dealing, update, tasks); `framework/hive/pipeline` is the model pipeline's plugin (builds, previews, bake claims, engine unit, uploads), loaded through `hive_plugins` in `game.toml`. 30 of 30 cases pass, two of them with no plugin loaded. Not yet run on real machines from this repository.
+- **Hive runs on real machines from this repository, with no secrets.** `framework/scripts/standby-start.sh --on-machine 3 build`, `coordinator.sh attach <run>`, `client.py build <sha> --preview-only --preview ExampleCrate`: three GitHub machines, preview back in 80 s including the engine compile. Uploads are off without Roblox keys (the hub says so and refuses upload requests). 31 hub cases pass. Not tried: cloud session machines for this repository, full map builds (the starter has no layout file), uploads.
+- **Release 0.1.0** cut (`framework/VERSION`, `framework/MANIFEST`, tag `framework-v0.1.0`); `main` is one fresh commit and the default branch; the repository is marked as a GitHub template. The `build` branch still holds the working history.
 - **Checks.** `ci.yml` (Luau tests, hive tests, pinned-copy test, script syntax, no game names under `framework/`), `new-game.yml` (copies the template, runs `init-game.sh`, builds the example), `proof.yml`, `starter.yml`.
 - **Pinned copy.** `framework-release.sh`, `framework-check.sh`, `framework-update.sh`, `init-game.sh` (also removes this spec, `proof/` and the proof workflow from a new game). No release cut yet.
 - Proof loop: `gh workflow run proof.yml --ref build -f ref=build`. Starter: `gh workflow run starter.yml --ref build -f ref=build`.
@@ -146,8 +148,7 @@ Not done:
 - Plugin identity in bake cache keys.
 - Hooks not yet offered: run phases and output writers in general, preview look (backdrop, light, field of view are constants in `render`), plugin-registered commands.
 - The template has no shading at all without a plugin. Open question for the user: ship a small neutral edge-shading plugin as the example.
-- Running the hive (standby workflow, hub, machine agents) from this repository; cloud machines for it.
-- First framework release (0.1.0) and `MANIFEST`; `main` as one fresh commit; marking the repository as a GitHub template.
+- Cloud session machines for this repository; a starter layout so full map builds work; deleting the `build` branch once nothing more is needed from its history.
 - Faults carried over from Scrap Heist, not fixed: `cloud-task.sh` argument order; `standby-previews.sh` empty normal-map path; `YardLayout` uses a model with no source.
 - Deferred: `framework/studio/PlaceModels.luau` and the icon list in `item-icons.py` are mostly Scrap Heist logic and are on the names allow-list (`framework/.names-allowed`).
 - Working rule: commit with an explicit file list (`git commit -m … -- <paths>`).
