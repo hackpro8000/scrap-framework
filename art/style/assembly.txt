@@ -5,8 +5,10 @@
 #   style:<path>       a file under this game's art/style (its look)
 #
 # [palette] goes at the top of items and layouts (the kit's colours).
-# [helpers] goes into every bot, item and layout: shape helpers, part(),
-# chunkedPart(), finishParts(), with this game's look amounts in between.
+# [helpers] goes into every bot, item and layout: the framework's shape
+# helpers, part() and chunkedPart(), with this game's look in between:
+# setLook() and finishParts() come from this kit (framework/art/lib/README.md
+# lists what a kit must define).
 # Order matters: the files are concatenated, so a later file sees every
 # `local` an earlier one defined.
 
@@ -20,9 +22,8 @@ framework:art/lib/10-texel-density.luau
 framework:art/lib/20-shapes.luau
 framework:art/lib/21-plates-tubes.luau
 framework:art/lib/22-machine-shapes.luau
-framework:art/lib/35-rusting.luau
-framework:art/lib/50-warp-and-look.luau
-style:55-hand-motion.luau
+framework:art/lib/50-warp.luau
+style:51-look.luau
 framework:art/lib/60-parts.luau
 framework:art/lib/70-chunks.luau
-framework:art/lib/80-finish.luau
+style:80-finish.luau

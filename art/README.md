@@ -7,18 +7,21 @@ meshes, textures and previews. The pipeline itself is described in
 ## Folders
 
 - `art/style/` is the style kit, the game's look: the palette (`palette.luau`),
-  the look amounts (`05-amounts.luau`: edge highlight, contact shadow, wear,
-  warp), the critic's style rules (`critic-style.md`), and `assembly.txt`, which
-  says in what order the kit's files and the framework's helpers
-  (`framework/art/lib/`) are joined in front of every model.
+  the amounts the helpers read (`05-amounts.luau`: warp, smoothing angle,
+  texture size), `setLook()` (`51-look.luau`) and `finishParts()`
+  (`80-finish.luau`), the critic's style rules (`critic-style.md`), and
+  `assembly.txt`, which says in what order the kit's files and the framework's
+  helpers (`framework/art/lib/`) are joined in front of every model.
+  `framework/art/lib/README.md` lists what a kit must define.
 - `art/src/` holds the model sources: `items/<Name>.luau` for props,
   `bots/<Name>/` for characters, `layouts/` for maps, `shared/` for code
   several models include.
 - `art/models/` is generated output: `<Name>/model.luau` (the assembled script),
   the `.glb`, textures and previews. Never edit it by hand.
 
-The starter kit is deliberately plain: flat colour, a light edge highlight and
-contact shadow, no wear or warp. `art/src/items/ExampleCrate.luau` is the
+The starter kit is deliberately plain: each part is painted its flat colour,
+with no edge highlights, contact shadows, wear or warp. It uses only the
+engine's base script API. `art/src/items/ExampleCrate.luau` is the
 pattern to copy.
 
 ## Adding a model
@@ -33,7 +36,8 @@ pattern to copy.
 
 ## Changing the look
 
-Edit the kit: colours in `palette.luau`, amounts in `05-amounts.luau`, and the
-rules in `critic-style.md` to match. Effects that need engine speed (a painted
-wear coat, brush stamps) will come as a Rust plugin in `art/plugins/`
-(planned).
+Edit the kit: colours in `palette.luau`, amounts in `05-amounts.luau`, the
+coat in `51-look.luau` and `80-finish.luau`, and the rules in
+`critic-style.md` to match. Painted shading (edge highlights, contact shadows,
+wear, brush strokes) needs a style plugin: a Rust plugin in `art/plugins/` that
+adds its own mesh methods, which the kit's `finishParts()` then calls.
