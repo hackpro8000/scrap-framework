@@ -127,6 +127,17 @@ Reasoned from reading the code; nothing was compiled. Some function bodies were 
 
 **Slice order (15):** 1-3 break the circles; 4 creates the workspace and kernel crate; 5 moves the leaf plugins (animation, glTF, render, GPU), which can go to separate workers; 6-7 move paint and split the bake; 8-10 add the registry and move script functions, flags, phases and the preview look behind hooks; 11 extracts the combine step; 12-13 are the two rewrites; 14 puts plugin identity in the cache key; 15 (optional) generates shader constants.
 
+## Status (kept current; newest first)
+
+2026-11-13
+
+- Proof loop: `gh workflow run proof.yml --ref build -f ref=build` compiles the engine on a GitHub machine and compares 308 output files of 9 Scrap Heist models with `proof/scrap-heist/baseline.txt`. Two recording runs were identical. About 90 s per run once the compile is cached.
+- Engine slices 1 and 2 (helpers to `kernel.rs`, part types to `part.rs`): PROOF OK. Slice 3 (cache and GPU no longer reach into bake and brush): in progress.
+- Done and committed on `build`: import from Scrap Heist `fa123338`; `framework/` layout; `game.toml` and its readers; pipeline scripts relocated (PROOF OK); game code skeleton (140 tests pass); agent rules and docs.
+- In progress: hive relocation and naming (`framework/hive`, hive scripts, the two build workflows).
+- Not started: engine slices 4-15; splitting the shared model helpers from Scrap Heist's style in `proof/scrap-heist/art/src` (the root `tests/art` specs were removed and return with the helpers); the hive split into a model-free hive and the pipeline's hive plugin; `framework-update.sh`, `framework-check.sh`, `init-game.sh`; the plain starter kit and example model; making `main` as one fresh commit.
+- Deferred decisions: where `framework/studio/PlaceModels.luau` and the icon list in `item-icons.py` belong (both are mostly Scrap Heist logic).
+
 ## OPEN
 
 1. **Kernel contents.** The mapping keeps the layer cache store, progress output and job queue in the kernel. Confirm, or make them plugins too.
