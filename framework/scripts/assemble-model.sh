@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Assembles art/models/<Name>/model.luau from the split sources in art/src:
 # a bot is its head, the shared helpers, then its body; an item is the
-# rarity colors, the shared helpers, then its own file (after a CACHE_KEY); a layout is the
+# palette, the shared helpers, then its own file (after a CACHE_KEY); a layout is the
 # placement prelude, the shared helpers, each model named on its "-- uses:" first line wrapped
 # as build<Name>() and keyed by a hash of its source for modelkit's cache,
 # then the layout itself.
+#
+# The palette and the shared helpers are the files listed in the game's
+# art/style/assembly.txt ([palette] and [helpers]): the framework's mechanics
+# in framework/art/lib with the game's look in art/style between them.
+# An "-- include: <Name>" file comes from the game's art/src/shared, or else
+# from framework/art/shared.
 #
 #   framework/scripts/assemble-model.sh <Name>
 
@@ -22,23 +28,66 @@ say() {
 	echo "assemble ${name}: $*" >&2
 }
 
+assembly="${root}/art/style/assembly.txt"
+if [ ! -f "${assembly}" ]; then
+	echo "assemble ${name}: no art/style/assembly.txt in ${root}; it lists the palette and helper files every model starts with" >&2
+	exit 1
+fi
+palette=()
+helpers=()
+section=""
+while IFS= read -r line; do
+	case "${line}" in
+		"" | "#"*) continue ;;
+		"["*"]") section="${line:1:${#line}-2}"; continue ;;
+		framework:*) file="${FRAMEWORK}/${line#framework:}" ;;
+		style:*) file="${root}/art/style/${line#style:}" ;;
+		*) echo "assemble ${name}: assembly.txt: unknown entry '${line}'" >&2; exit 1 ;;
+	esac
+	if [ ! -f "${file}" ]; then
+		echo "assemble ${name}: assembly.txt: missing ${file}" >&2
+		exit 1
+	fi
+	case "${section}" in
+		palette) palette+=("${file}") ;;
+		helpers) helpers+=("${file}") ;;
+		*) echo "assemble ${name}: assembly.txt: '${line}' is outside [palette] or [helpers]" >&2; exit 1 ;;
+	esac
+done < "${assembly}"
+
+# A shared file: the game's own first, then the framework's.
+shared_file() {
+	if [ -f "${src}/shared/$1.luau" ]; then
+		echo "${src}/shared/$1.luau"
+	else
+		echo "${FRAMEWORK}/art/shared/$1.luau"
+	fi
+}
+
 mkdir -p "$(dirname "${out}")"
 if [ -d "${src}/bots/${name}" ]; then
 	say "bot: head, shared helpers, body"
-	cat "${src}/bots/${name}/head.luau" "${src}/common.luau" "${src}/bots/${name}/body.luau" > "${out}"
+	cat "${src}/bots/${name}/head.luau" "${helpers[@]}" "${src}/bots/${name}/body.luau" > "${out}"
 elif [ -f "${src}/items/${name}.luau" ]; then
 	# CACHE_KEY hashes the shared code and the item down to "-- cached
 	# above", for a model.cached build of the part above that line.
-	# An "-- include: <Name>" line pulls in art/src/shared/<Name>.luau, whose
+	# An "-- include: <Name>" line pulls in the shared file <Name>.luau, whose
 	# own includes are pulled in too; each file comes in once, the first time.
-	say "item: rarity, shared helpers, item"
-	item="$(awk -v shared="${src}/shared" '
-		function pull(file,    line, name) {
+	say "item: palette, shared helpers, item"
+	item="$(awk -v shared="${src}/shared" -v kit="${FRAMEWORK}/art/shared" '
+		function exists(file,    line) {
+			if ((getline line < file) < 0) return 0
+			close(file)
+			return 1
+		}
+		function pull(file,    line, name, path) {
 			while ((getline line < file) > 0) {
 				if (line ~ /^-- include: /) {
 					split(line, words, " ")
 					name = words[3]
-					if (!(name in seen)) { seen[name] = 1; pull(shared "/" name ".luau") }
+					path = shared "/" name ".luau"
+					if (!exists(path)) path = kit "/" name ".luau"
+					if (!(name in seen)) { seen[name] = 1; pull(path) }
 				} else {
 					print line
 				}
@@ -46,21 +95,21 @@ elif [ -f "${src}/items/${name}.luau" ]; then
 			close(file)
 		}
 		BEGIN { pull(ARGV[1]); exit }' "${src}/items/${name}.luau")"
-	key="$({ cat "${src}/rarity.luau" "${src}/common.luau"; printf '%s\n' "${item}" | sed '/^-- cached above$/q'; } | sha1sum | cut -c1-16)"
-	{ echo "local CACHE_KEY = \"${name}-${key}\""; cat "${src}/rarity.luau" "${src}/common.luau"; printf '%s\n' "${item}"; } > "${out}"
+	key="$({ cat "${palette[@]}" "${helpers[@]}"; printf '%s\n' "${item}" | sed '/^-- cached above$/q'; } | sha1sum | cut -c1-16)"
+	{ echo "local CACHE_KEY = \"${name}-${key}\""; cat "${palette[@]}" "${helpers[@]}"; printf '%s\n' "${item}"; } > "${out}"
 	say "cache key ${name}-${key}"
 elif [ -f "${src}/layouts/${name}.luau" ]; then
 	# Skipped parts never reach the cache, so the skip rule is part of each key.
 	skip="$(awk '/^skipPart = function/ { open = 1 } open { print } open && /^end/ { open = 0 }' "${src}/layouts/${name}.luau")"
-	say "layout: prelude, rarity, shared helpers, used models, layout"
+	say "layout: prelude, palette, shared helpers, used models, layout"
 	{
-		cat "${src}/layouts/prelude.luau" "${src}/rarity.luau" "${src}/common.luau"
+		cat "${src}/layouts/prelude.luau" "${palette[@]}" "${helpers[@]}"
 		# Shared helpers the layout itself calls.
 		for included in $(awk '/^-- include: / { print $3 }' "${src}/layouts/${name}.luau"); do
-			cat "${src}/shared/${included}.luau"
+			cat "$(shared_file "${included}")"
 		done
 		# Builders are globals, not locals: a layout that uses many models
-		# (the map's kit has one per junkrot) would run past Luau's limit
+		# (a map's kit can have one per creature) would run past Luau's limit
 		# of 200 locals in one function.
 		for used in $(head -n 1 "${src}/layouts/${name}.luau" | sed 's/^-- uses://'); do
 			echo "function build${used}()"
@@ -82,7 +131,7 @@ elif [ -f "${src}/layouts/${name}.luau" ]; then
 	# editing shared code rebuilds them all.
 	shared_files=()
 	while read -r included; do
-		shared_files+=("${src}/shared/${included}.luau")
+		shared_files+=("$(shared_file "${included}")")
 	done < <(awk '/^-- include: / { print $3 }' "${layout}")
 	spans="$(awk '!open && /slab\(.*function\(\)[ \t]*$/ { match($0, /^\t*/); indent = substr($0, 1, RLENGTH); start = NR; open = 1; next }
 		open && index($0, indent "end") == 1 { print start, NR; open = 0 }' "${layout}")"
@@ -90,7 +139,7 @@ elif [ -f "${src}/layouts/${name}.luau" ]; then
 		NR == 1 && /^-- uses:/ { next }
 		/^-- slab keys skip/ { skipping = 1; next }
 		/^-- slab keys resume/ { skipping = 0; next }
-		!skip[NR] && !skipping' "${layout}" | cat "${src}/layouts/prelude.luau" "${src}/rarity.luau" "${src}/common.luau" "${shared_files[@]}" - | sha1sum | cut -c1-16)"
+		!skip[NR] && !skipping' "${layout}" | cat "${src}/layouts/prelude.luau" "${palette[@]}" "${helpers[@]}" "${shared_files[@]}" - | sha1sum | cut -c1-16)"
 	# Measured build times for dealing placements to shards (see prelude.luau),
 	# written by the build-map-shards workflow. They go on one line ahead of
 	# everything and into no key, so new timings never invalidate the cache.

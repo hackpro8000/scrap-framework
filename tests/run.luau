@@ -55,6 +55,10 @@ Roblox.install()
 
 local filter = process.args[1]
 local specs = findSpecs(TESTS_DIR, {})
+-- The framework brings its own specs (the shared model helpers).
+if fs.isDir("framework/tests") then
+	findSpecs("framework/tests", specs)
+end
 table.sort(specs)
 
 local passed = 0
@@ -68,7 +72,9 @@ for _, specPath in specs do
 	print(specPath)
 
 	-- require() resolves relative to this file, which sits in tests/.
-	local modulePath = "./" .. string.sub(specPath, #TESTS_DIR + 2, -#".luau" - 1)
+	local modulePath = if string.sub(specPath, 1, #TESTS_DIR + 1) == TESTS_DIR .. "/"
+		then "./" .. string.sub(specPath, #TESTS_DIR + 2, -#".luau" - 1)
+		else "../" .. string.sub(specPath, 1, -#".luau" - 1)
 	local loaded, loadError = pcall(require, modulePath)
 	local cases = Test.collect()
 

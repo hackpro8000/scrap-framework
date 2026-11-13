@@ -1,0 +1,31 @@
+# The code every model starts with, in order. framework/scripts/assemble-model.sh
+# reads this file; lines starting with # and blank lines are skipped.
+#
+#   framework:<path>   a file under the framework folder (mechanics, same for every game)
+#   style:<path>       a file under this game's art/style (its look)
+#
+# [palette] goes at the top of items and layouts (rarity colours).
+# [helpers] goes into every bot, item and layout: shape helpers, part(),
+# chunkedPart(), finishParts(), with this game's look amounts in between.
+# Order matters: the files are concatenated, so a later file sees every
+# `local` an earlier one defined.
+
+[palette]
+style:palette.luau
+
+[helpers]
+framework:art/lib/00-math.luau
+style:05-amounts.luau
+framework:art/lib/10-texel-density.luau
+framework:art/lib/20-shapes.luau
+framework:art/lib/21-plates-tubes.luau
+framework:art/lib/22-machine-shapes.luau
+style:30-weathering-colours.luau
+framework:art/lib/35-rusting.luau
+style:40-binding-colours.luau
+style:41-warp.luau
+framework:art/lib/50-warp-and-look.luau
+style:55-hand-motion.luau
+framework:art/lib/60-parts.luau
+framework:art/lib/70-chunks.luau
+framework:art/lib/80-finish.luau
