@@ -87,6 +87,19 @@ main() {
 		rm -rf "${GAME_ROOT:?}/proof"
 		echo "proof/: removed (it belongs to the framework repository)"
 	fi
+	# Files that only the framework repository needs: its own design notes
+	# and the workflow that runs the proof game.
+	local extra
+	for extra in docs/plans/template-framework.md .github/workflows/proof.yml; do
+		[ -e "${GAME_ROOT}/${extra}" ] || continue
+		rm -f "${GAME_ROOT:?}/${extra}"
+		echo "${extra}: removed (it belongs to the framework repository)"
+	done
+	if [ -f "${GAME_ROOT}/.gitignore" ] && rg -q '^proof/' "${GAME_ROOT}/.gitignore"; then
+		rg -v '^proof/' "${GAME_ROOT}/.gitignore" > "${GAME_ROOT}/.gitignore.new" || true
+		mv "${GAME_ROOT}/.gitignore.new" "${GAME_ROOT}/.gitignore"
+		echo ".gitignore: proof lines removed"
+	fi
 	cat << EOF
 
 Next:
