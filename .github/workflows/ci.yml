@@ -38,7 +38,7 @@ jobs:
       - name: Modules
         run: python3 -m pip install --quiet websockets==10.4
       - name: Hub queue tests
-        run: GAME_ROOT=proof/scrap-heist python3 framework/hive/hub/test_queue.py
+        run: python3 framework/hive/hub/test_queue.py
 
   framework-copy:
     runs-on: ubuntu-latest
@@ -76,7 +76,7 @@ jobs:
       # leftovers are listed in framework/.names-allowed.
       - name: No game names in framework/
         run: |
-          hits="$(rg -n -i 'scrap heist|scrap-heist|scrapheist|junkrot|ServerMap' framework/ || true)"
+          hits="$(rg -n -i --hidden -f framework/.names-forbidden -g '!.names-*' framework/ || true)"
           patterns="$(rg '^\^framework/' framework/.names-allowed || true)"
           left="${hits}"
           if [ -n "${hits}" ] && [ -n "${patterns}" ]; then
