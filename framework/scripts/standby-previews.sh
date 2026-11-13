@@ -99,7 +99,7 @@ for name in "${list[@]}"; do
 		# A normal-mapped build (--normals in the flags) sends its maps and
 		# GLB back too, since only Studio can show a normal map.
 		case " ${flags[*]} " in
-			*" --normals "*) cp ""/*_Normal.png ""/*_Roughness.png "${rendered}/${model}.glb" "${dir}/" 2> /dev/null || true ;;
+			*" --normals "*) cp "${rendered}"/*_Normal.png "${rendered}"/*_Roughness.png "${rendered}/${model}.glb" "${dir}/" 2> /dev/null || true ;;
 		esac
 	else
 		echo "FAILED" >> "${dir}/build.log"
