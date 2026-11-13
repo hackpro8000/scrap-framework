@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Arc;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 // Time spent in each shading layer this run (MODELKIT_PROFILE=1 prints them),
@@ -32,14 +32,10 @@ use crate::gpu;
 use crate::image::Image;
 use crate::mesh::{add, cross, dot, normalize, scale, sub, Mesh, Vec3};
 
-pub fn hash(mut x: u32) -> f64 {
-	x ^= x >> 16;
-	x = x.wrapping_mul(0x7feb_352d);
-	x ^= x >> 15;
-	x = x.wrapping_mul(0x846c_a68b);
-	x ^= x >> 16;
-	x as f64 / u32::MAX as f64
-}
+// The low-level pieces now live in the kernel; these names stay reachable
+// through `bake::` for the modules that still import them from here.
+pub use crate::kernel::{hash, parallel, to_linear, Texel};
+use crate::kernel::{parallel_with, to_srgb};
 
 // --- Unwrap -----------------------------------------------------------------
 
@@ -172,19 +168,6 @@ pub fn unwrap(mesh: &mut Mesh, margin: f64) -> f64 {
 }
 
 // --- Rasterize --------------------------------------------------------------
-
-// The surface point painted by one texel.
-#[derive(Clone, Copy)]
-pub struct Texel {
-	pub pixel: usize,
-	pub position: Vec3,
-	pub normal: Vec3,
-	pub face_normal: Vec3,
-	// The surface directions the texture's U and V run along, unit length, so
-	// a tilt in the world turns into a tangent-space normal.
-	pub tangent: Vec3,
-	pub bitangent: Vec3,
-}
 
 // The directions along a triangle's surface that U and V increase in. A
 // triangle without usable UVs takes any frame on its surface.
@@ -706,52 +689,6 @@ fn brush_strokes(edge: usize, t: f64, length: f64, d: f64, wide: f64) -> f64 {
 		}
 	}
 	paint
-}
-
-
-pub fn to_linear(c: f32) -> f64 {
-	let c = c as f64;
-	if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
-}
-
-fn to_srgb(c: f64) -> f32 {
-	let c = c.clamp(0.0, 1.0);
-	(if c <= 0.003_130_8 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }) as f32
-}
-
-// Texels a bake thread takes at a time. Threads take the next batch as they
-// finish one, so a thread that drew slow texels (along creases) doesn't leave
-// the others idle while it catches up.
-const BATCH: usize = 1024;
-
-pub fn parallel<I: Sync, T: Send, F: Fn(&I) -> T + Sync>(texels: &[I], work: F) -> Vec<T> {
-	parallel_with(texels, || (), |_, texel| work(texel))
-}
-
-// Like parallel, with scratch state each thread keeps from texel to texel.
-fn parallel_with<I: Sync, T: Send, S, N: Fn() -> S + Sync, F: Fn(&mut S, &I) -> T + Sync>(texels: &[I], new: N, work: F) -> Vec<T> {
-	let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
-	let batches: Vec<&[I]> = texels.chunks(BATCH).collect();
-	let next = AtomicUsize::new(0);
-	let mut done: Vec<(usize, Vec<T>)> = std::thread::scope(|scope| {
-		let handles: Vec<_> = (0..threads.min(batches.len()))
-			.map(|_| {
-				scope.spawn(|| {
-					let mut mine = Vec::new();
-					let mut state = new();
-					loop {
-						let at = next.fetch_add(1, Ordering::Relaxed);
-						let Some(batch) = batches.get(at) else { break };
-						mine.push((at, batch.iter().map(|texel| work(&mut state, texel)).collect::<Vec<T>>()));
-					}
-					mine
-				})
-			})
-			.collect();
-		handles.into_iter().flat_map(|h| h.join().expect("bake thread")).collect()
-	});
-	done.sort_unstable_by_key(|(at, _)| *at);
-	done.into_iter().flat_map(|(_, values)| values).collect()
 }
 
 #[allow(clippy::too_many_arguments)]

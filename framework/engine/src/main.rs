@@ -54,8 +54,10 @@ mod glb;
 mod hand;
 mod gpu;
 mod image;
+mod kernel;
 mod marks;
 mod mesh;
+mod part;
 mod progress;
 mod work;
 mod render;
@@ -72,6 +74,7 @@ use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
 
 use image::Image;
 use mesh::{dot, scale, sub, Face, Mesh};
+pub use part::{Bone, Part};
 
 // The numbers set by name in a `tune` table.
 fn tune_numbers(tune: Option<Table>) -> mlua::Result<Vec<(String, f64)>> {
@@ -112,26 +115,6 @@ struct MeshHandle(Rc<RefCell<Mesh>>);
 
 #[derive(Clone)]
 struct ImageHandle(Rc<RefCell<Image>>);
-
-#[derive(Clone)]
-pub struct Part {
-	pub name: String,
-	pub group: Option<String>,
-	pub preview: bool,
-	// Glow strength, like SurfaceAppearance.EmissiveStrength; 0 doesn't glow.
-	pub emissive: f32,
-	pub mesh: Rc<RefCell<Mesh>>,
-	pub image: Rc<RefCell<Image>>,
-	pub bone: Option<usize>,
-}
-
-// A rig joint. Parts follow exactly one bone each (rigid skin), so moving a
-// bone in Studio moves its parts whole.
-pub struct Bone {
-	pub name: String,
-	pub parent: Option<usize>,
-	pub head: [f64; 3],
-}
 
 impl UserData for MeshHandle {
 	fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
