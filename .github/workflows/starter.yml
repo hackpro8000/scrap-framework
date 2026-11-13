@@ -2,7 +2,7 @@ name: starter
 
 # Builds the game's own models (art/src at the repository root) on a GitHub
 # machine with framework/scripts/build-starter.sh and keeps their previews as
-# an artifact. Shares the compiled engine cache with the proof workflow.
+# an artifact. Its engine (the root engine package) compiles into target/.
 
 on:
   workflow_dispatch:
@@ -27,8 +27,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            framework/engine/target
-          key: proof-${{ hashFiles('framework/engine/Cargo.lock') }}
+            target
+          key: starter-${{ hashFiles('Cargo.lock') }}
       - name: Tools
         run: |
           command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep

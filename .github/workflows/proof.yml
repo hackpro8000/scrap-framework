@@ -30,8 +30,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            framework/engine/target
-          key: proof-${{ hashFiles('framework/engine/Cargo.lock') }}
+            proof/scrap-heist/target
+          key: proof-${{ hashFiles('proof/scrap-heist/Cargo.lock') }}
       - name: Tools
         run: |
           command -v rg > /dev/null || sudo apt-get install -y -qq ripgrep

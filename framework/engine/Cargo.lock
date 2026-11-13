@@ -484,7 +484,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "modelkit"
+name = "modelkit-anim"
+version = "0.1.0"
+dependencies = [
+ "modelkit-kernel",
+]
+
+[[package]]
+name = "modelkit-app"
 version = "0.1.0"
 dependencies = [
  "mlua",
@@ -494,15 +501,6 @@ dependencies = [
  "modelkit-render",
  "modelkit-texels",
  "png",
- "sh-paint",
- "sh-shading",
-]
-
-[[package]]
-name = "modelkit-anim"
-version = "0.1.0"
-dependencies = [
- "modelkit-kernel",
 ]
 
 [[package]]
@@ -843,27 +841,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "sh-paint"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "modelkit-gpu",
- "modelkit-kernel",
- "png",
-]
-
-[[package]]
-name = "sh-shading"
-version = "0.1.0"
-dependencies = [
- "modelkit-cache",
- "modelkit-gpu",
- "modelkit-kernel",
- "modelkit-texels",
- "sh-paint",
 ]
 
 [[package]]

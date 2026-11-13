@@ -77,6 +77,6 @@ for attempt in 1 2 3 4; do
 done
 # A build regenerates the layout's model.luau and may refresh the engine
 # binary; put them back so the checkout is clean for the next task.
-git checkout -q -- art/models "${FRAMEWORK}/engine/bin" 2> /dev/null || true
+git checkout -q -- art/models "${GAME_ROOT}/engine/bin" 2> /dev/null || true
 cat "${out}/summary.txt" 2> /dev/null || tail -n 15 "${out}/task.out"
 exit "${status}"

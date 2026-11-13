@@ -1,0 +1,17 @@
+[package]
+name = "modelkit-app"
+version = "0.1.0"
+edition = "2021"
+
+# The engine host: the Luau script API, the build's run phases, the review
+# renders, the command line and the plugin registry. A game's engine binary
+# (<game>/engine) calls modelkit_app::run with its plugins. It depends only on
+# the base crates, never on a game's plugin.
+[dependencies]
+modelkit-kernel = { path = "../kernel" }
+png = { workspace = true }
+modelkit-anim = { path = "../anim" }
+modelkit-render = { path = "../render" }
+modelkit-cache = { path = "../cache" }
+modelkit-texels = { path = "../texels" }
+mlua = { version = "0.12", features = ["luau", "luau-jit"] }

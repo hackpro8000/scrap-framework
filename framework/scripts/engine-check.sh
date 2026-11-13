@@ -17,7 +17,9 @@ workflow_ref="${ENGINE_CHECK_WORKFLOW_REF:-${branch}}"
 
 "${FRAMEWORK}/scripts/push-wip.sh" "${branch}" > /dev/null
 before="$(gh run list --workflow engine-check.yml --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
-gh workflow run engine-check.yml --ref "${workflow_ref}" -f ref="${branch}" -f share="${share}"
+# The game's folder from the repository root: its engine is the one compiled.
+game="$(realpath --relative-to="$(git rev-parse --show-toplevel)" "${GAME_ROOT}")"
+gh workflow run engine-check.yml --ref "${workflow_ref}" -f ref="${branch}" -f share="${share}" -f game="${game}"
 run="${before}"
 for _ in $(seq 30); do
 	sleep 2

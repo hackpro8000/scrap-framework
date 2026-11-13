@@ -1,13 +1,13 @@
-[package]
-name = "modelkit"
-version = "0.1.0"
-edition = "2021"
-
-# The engine is a small kernel crate plus plugin crates under crates/, with
-# this package (the modelkit binary) at the root. proof-base is an old engine
-# copied in for a bake proof (scripts/bake-proof.sh); it builds on its own.
+# The engine's base crates: the host (crates/app, the modelkit-app library)
+# and the crates it is built from. No game and no style lives here: each game
+# is its own workspace whose small engine package (<game>/engine) builds the
+# modelkit binary from these crates and the game's plugins (<game>/art/plugins).
+# The base crates inherit from [workspace.dependencies] below even when a game
+# builds them, since Cargo resolves `workspace = true` against the workspace
+# that holds the crate. proof-base is an old engine copied in for a bake proof
+# (scripts/bake-proof.sh); it builds on its own.
 [workspace]
-members = [".", "crates/*"]
+members = ["crates/*"]
 exclude = ["proof-base"]
 resolver = "2"
 
@@ -15,19 +15,9 @@ resolver = "2"
 png = "0.17"
 bytemuck = { version = "1.25", features = ["derive"] }
 
-[dependencies]
-modelkit-kernel = { path = "crates/kernel" }
-png = { workspace = true }
-modelkit-anim = { path = "crates/anim" }
-modelkit-render = { path = "crates/render" }
-modelkit-cache = { path = "crates/cache" }
-modelkit-texels = { path = "crates/texels" }
-sh-paint = { path = "crates/sh-paint" }
-sh-shading = { path = "crates/sh-shading" }
-mlua = { version = "0.12", features = ["luau", "luau-jit"] }
-
 # Dependencies (Luau's C++ included) build optimized once; our own code stays
-# quick to rebuild but still fast enough to bake textures.
+# quick to rebuild but still fast enough to bake textures. Profiles apply only
+# from the workspace being built, so each game's Cargo.toml repeats these.
 [profile.dev]
 opt-level = 1
 

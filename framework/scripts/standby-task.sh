@@ -147,7 +147,7 @@ prepare_lane() {
 		mkdir -p "${lanes_dir}"
 		git worktree add -q -f --detach "${at}" "${commit}" || return 1
 	fi
-	cp -p "${FRAMEWORK}/engine/bin/modelkit-linux-x64" "${FRAMEWORK}/engine/bin/modelkit-linux-x64.source-sha" "$(lane_framework "$1")/engine/bin/" &&
+	cp -p "${GAME_ROOT}/engine/bin/modelkit-linux-x64" "${GAME_ROOT}/engine/bin/modelkit-linux-x64.source-sha" "$(lane_game "$1")/engine/bin/" &&
 		cp "${model}/model.luau" "$(lane_game "$1")/${model}/model.luau"
 }
 

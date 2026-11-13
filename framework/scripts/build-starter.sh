@@ -23,7 +23,7 @@ else
 fi
 [ "${#models[@]}" -gt 0 ] || { echo "starter: no models in models.txt or art/src/items FAILED"; exit 1; }
 
-mkdir -p "${FRAMEWORK}/engine/bin"
+mkdir -p "${GAME_ROOT}/engine/bin"
 "${FRAMEWORK}/scripts/build-model.sh" --engine >&2 || { echo "starter: the engine did not compile FAILED"; exit 1; }
 
 status=0

@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Instant;
 
-type Job = Box<dyn FnOnce() -> Result<(), String>>;
+pub type Job = Box<dyn FnOnce() -> Result<(), String>>;
 
 thread_local! {
 	// With --share-bakes, the paints the script asked for, by chunk, to bake

@@ -19,7 +19,7 @@ source "$(dirname "$0")/lib/game.sh"
 root="${GAME_ROOT}"
 src="${root}/art/src"
 dir="${root}/art/models/${name}"
-modelkit="${FRAMEWORK}/engine/bin/modelkit-linux-x64"
+modelkit="${GAME_ROOT}/engine/bin/modelkit-linux-x64"
 cd "${root}"
 
 "${FRAMEWORK}/scripts/build-model.sh" --engine || exit 1

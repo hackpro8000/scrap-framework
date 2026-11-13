@@ -1,0 +1,30 @@
+# This game's engine: the framework's host (framework/engine) with the
+# plugins listed in engine/src/main.rs. Built with
+#   cargo build --release --manifest-path Cargo.toml -p engine
+# into target/release/modelkit.
+[workspace]
+members = ["engine"]
+# A game's own plugins live in art/plugins/<name>; add "art/plugins/*" to
+# members once the first one is there (a glob that matches nothing is an
+# error).
+# framework/ and proof/ hold workspaces of their own; without this, the
+# framework crates the engine uses would be taken as members of this one.
+exclude = ["framework", "proof"]
+resolver = "2"
+
+# Profiles apply only from the workspace being built: the same as
+# framework/engine/Cargo.toml's.
+# Dependencies (Luau's C++ included) build optimized once; our own code stays
+# quick to rebuild but still fast enough to bake textures.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+# One optimisation pass over the whole engine instead of one per unit: a
+# slower compile, paid once per engine change, for a faster bake.
+lto = "thin"
+codegen-units = 1

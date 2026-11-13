@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds one model, or every model, from its art/models/<Name>/model.luau
-# with the prebuilt modelkit engine in framework/engine/bin. When Rust is
+# with the prebuilt modelkit engine in <game>/engine/bin. When Rust is
 # installed and the engine source has changed since the committed binary was
 # built, it rebuilds the engine and refreshes that binary, which then needs
 # committing along with the engine change. The source hash is kept in
@@ -17,11 +17,15 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/game.sh"
 root="${GAME_ROOT}"
-engine="${FRAMEWORK}/engine"
+# The game's engine package (<game>/engine) builds the binary from the
+# framework's base crates and the game's plugins (<game>/art/plugins).
+engine="${root}/engine"
 modelkit="${engine}/bin/modelkit-linux-x64"
 stamp="${modelkit}.source-sha"
-# Hash the engine's sources and manifests by content, so only a real source change counts.
-source_sha="$(cd "${engine}" && find src crates Cargo.toml Cargo.lock -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-64)"
+# Hash the engine's sources and manifests by content, so only a real source
+# change counts: the framework's crates, and the game's workspace manifest,
+# lock, engine package and plugins.
+source_sha="$({ (cd "${FRAMEWORK}/engine" && find crates Cargo.toml -type f | LC_ALL=C sort | xargs sha256sum) && (cd "${GAME_ROOT}" && find Cargo.toml Cargo.lock engine/src engine/Cargo.toml $(ls -d art/plugins 2> /dev/null) -type f | LC_ALL=C sort | xargs sha256sum); } | sha256sum | cut -c1-64)"
 if [ "$(cat "${stamp}" 2>/dev/null || true)" != "${source_sha}" ]; then
 	# The first build machine to compile an engine leaves it on the
 	# build-engine branch with its source hash (MODELKIT_SHARE_ENGINE=1), so
@@ -55,8 +59,8 @@ if [ "$(cat "${stamp}" 2>/dev/null || true)" != "${source_sha}" ]; then
 		echo "engine: source changed and no machine has compiled it yet; machine 1 compiles it on the next build" >&2
 		exit 0
 	elif command -v cargo >/dev/null 2>&1; then
-		cargo build -q --release --manifest-path "${engine}/Cargo.toml"
-		cp "${engine}/target/release/modelkit" "${modelkit}"
+		cargo build -q --release --manifest-path "${root}/Cargo.toml" -p engine
+		cp "${root}/target/release/modelkit" "${modelkit}"
 		if [ "${MODELKIT_SHARE_ENGINE:-}" = "1" ]; then
 			shared="$(mktemp -d)"
 			cp "${modelkit}" "${shared}/modelkit-linux-x64"

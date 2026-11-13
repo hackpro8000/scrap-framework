@@ -26,6 +26,12 @@ framework/engine/target/
 framework/engine/bin/
 framework/uikit/target/
 
+# Each game's engine build outputs (the root game and the proof game)
+/target/
+/engine/bin/
+proof/scrap-heist/target/
+proof/scrap-heist/engine/bin/
+
 # Model outputs (.glb, textures, previews, screenshots) are rebuilt from model.luau
 art/models/*/*
 !art/models/*/model.luau

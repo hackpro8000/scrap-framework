@@ -1,0 +1,11 @@
+[package]
+name = "sh-paint"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modelkit-kernel = { path = "../../../../../framework/engine/crates/kernel" }
+modelkit-gpu = { path = "../../../../../framework/engine/crates/gpu" }
+modelkit-app = { path = "../../../../../framework/engine/crates/app" }
+png = { workspace = true }
+bytemuck = { workspace = true }

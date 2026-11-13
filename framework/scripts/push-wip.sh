@@ -50,7 +50,7 @@ for layout_source in art/src/layouts/*.luau; do
 	done
 done
 
-# The machines run the engine binary in framework/engine/bin. When its source
+# The machines run the engine binary in <game>/engine/bin. When its source
 # changed, a copy a machine already compiled is taken from the build-engine
 # branch; otherwise the snapshot ships the source alone and machine 1
 # compiles and shares it on the next build. Nothing compiles on this computer.

@@ -23,7 +23,7 @@ models="${root}/models.txt"
 differences="${root}/differences.txt"
 fresh="$(mktemp)"
 
-mkdir -p "${FRAMEWORK}/engine/bin"
+mkdir -p "${GAME_ROOT}/engine/bin"
 "${FRAMEWORK}/scripts/build-model.sh" --engine >&2 || { echo "proof: the engine did not compile FAILED"; exit 1; }
 
 status=0

@@ -1,0 +1,14 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition = "2021"
+
+# The binary keeps the engine's name: target/release/modelkit.
+[[bin]]
+name = "modelkit"
+path = "src/main.rs"
+
+[dependencies]
+modelkit-app = { path = "../../../framework/engine/crates/app" }
+sh-paint = { path = "../art/plugins/sh-paint" }
+sh-shading = { path = "../art/plugins/sh-shading" }

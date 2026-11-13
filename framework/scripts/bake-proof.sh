@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Proves a change to the engine (framework/engine) leaves models as they were,
+# Proves a change to the engine (framework/engine and the game's engine
+# package and plugins) leaves models as they were,
 # and times it: each model is built cold by the engine before the change and
 # by the engine after it, and the two results are compared byte for byte.
 # Run it on a build machine, never on the user's computer.
@@ -24,12 +25,12 @@ shift
 # Both engines compile side by side.
 cargo build -q --release --manifest-path "${before_src}/Cargo.toml" >&2 &
 before_build=$!
-cargo build -q --release --manifest-path "${FRAMEWORK}/engine/Cargo.toml" >&2 &
+cargo build -q --release --manifest-path "${GAME_ROOT}/Cargo.toml" -p engine >&2 &
 after_build=$!
 wait "${before_build}" || { echo "proof - the engine before the change did not compile FAILED"; exit 1; }
 wait "${after_build}" || { echo "proof - the engine after the change did not compile FAILED"; exit 1; }
 before="${before_src}/target/release/modelkit"
-after="${FRAMEWORK}/engine/target/release/modelkit"
+after="${GAME_ROOT}/target/release/modelkit"
 
 # Builds one model cold; prints "<seconds> <peak MB> <sha256 of the model>".
 cold() {

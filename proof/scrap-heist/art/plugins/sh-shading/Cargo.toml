@@ -1,0 +1,13 @@
+[package]
+name = "sh-shading"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modelkit-kernel = { path = "../../../../../framework/engine/crates/kernel" }
+modelkit-gpu = { path = "../../../../../framework/engine/crates/gpu" }
+modelkit-cache = { path = "../../../../../framework/engine/crates/cache" }
+modelkit-texels = { path = "../../../../../framework/engine/crates/texels" }
+modelkit-render = { path = "../../../../../framework/engine/crates/render" }
+modelkit-app = { path = "../../../../../framework/engine/crates/app" }
+sh-paint = { path = "../sh-paint" }

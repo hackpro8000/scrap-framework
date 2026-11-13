@@ -145,7 +145,7 @@ pub fn write(parts: &[Part], bones: &[Bone], clips: &[Clip]) -> Vec<u8> {
 			part.name,
 			// The factors multiply the texture, so with one they stand at 1.
 			if part.image.borrow().metalness.is_some() { 1.0 } else { 0.0 },
-			if metal_rough.is_empty() { crate::bake::roughness() } else { 1.0 }
+			if metal_rough.is_empty() { crate::plugin::export_roughness() } else { 1.0 }
 		));
 		meshes.push(format!(
 			"{{\"name\":\"{}\",\"primitives\":[{{\"attributes\":{{\"POSITION\":{},\"NORMAL\":{},\"TEXCOORD_0\":{}{skinning}}},\"indices\":{},\"material\":{index}}}]}}",
