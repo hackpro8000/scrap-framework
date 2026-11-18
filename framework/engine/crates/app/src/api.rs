@@ -133,7 +133,7 @@ pub(crate) fn install_api(lua: &Lua, dir: &Path, parts: Rc<RefCell<Vec<Part>>>, 
 				Some(b) => Some(bones.borrow().iter().position(|x| x.name == b).ok_or_else(|| mlua::Error::runtime(format!("no bone {b} (add it before its parts)")))?),
 			};
 			let skin = match &options {
-				Some(options) => soft_skin(&name, options, &bones.borrow())?,
+				Some(options) => soft_skin(&name, options, &mesh.borrow::<MeshHandle>()?.0.borrow(), &bones.borrow())?,
 				None => None,
 			};
 			if bone.is_some() && skin.is_some() {
@@ -240,7 +240,7 @@ pub(crate) fn install_api(lua: &Lua, dir: &Path, parts: Rc<RefCell<Vec<Part>>>, 
 // model.part's soft skin options: `skin` ("nearest" or "smooth") and the
 // candidate `bones` it may use (every bone when left out). The weights are
 // worked out once the script ends (model.rs), when every vertex is in place.
-fn soft_skin(name: &str, options: &Table, rig: &[Bone]) -> mlua::Result<Option<Rc<Skin>>> {
+fn soft_skin(name: &str, options: &Table, mesh: &Mesh, rig: &[Bone]) -> mlua::Result<Option<Rc<Skin>>> {
 	let listed = options.get::<Option<Vec<String>>>("bones")?;
 	let Some(rule) = options.get::<Option<String>>("skin")? else {
 		if listed.is_some() {
@@ -248,10 +248,13 @@ fn soft_skin(name: &str, options: &Table, rig: &[Bone]) -> mlua::Result<Option<R
 		}
 		return Ok(None);
 	};
+	if rule == "given" {
+		return given_skin(name, options, mesh, rig).map(Some);
+	}
 	let smooth = match rule.as_str() {
 		"nearest" => false,
 		"smooth" => true,
-		other => return Err(mlua::Error::runtime(format!("part {name}: skin is \"nearest\" or \"smooth\", not \"{other}\""))),
+		other => return Err(mlua::Error::runtime(format!("part {name}: skin is \"nearest\", \"smooth\" or \"given\", not \"{other}\""))),
 	};
 	if listed.as_ref().is_some_and(|list| list.is_empty()) {
 		return Err(mlua::Error::runtime(format!("part {name}: bones is empty; leave it out to use every bone")));
@@ -261,4 +264,31 @@ fn soft_skin(name: &str, options: &Table, rig: &[Bone]) -> mlua::Result<Option<R
 		bones.push(rig.iter().position(|b| b.name == wanted).ok_or_else(|| mlua::Error::runtime(format!("part {name}: no bone {wanted} (add it before its parts)")))?);
 	}
 	Ok(Some(Rc::new(Skin::Rule { smooth, bones })))
+}
+
+// skin = "given": `follows` names each vertex's bone, in vertex order (one
+// name per vertex), and the vertex follows that bone alone. For pieces laid
+// over several rigid parts at once, such as hair cards over every leg, each
+// card following the bone of the leg piece it lies on.
+fn given_skin(name: &str, options: &Table, mesh: &Mesh, rig: &[Bone]) -> mlua::Result<Rc<Skin>> {
+	let follows = options
+		.get::<Option<Vec<String>>>("follows")?
+		.ok_or_else(|| mlua::Error::runtime(format!("part {name}: skin \"given\" needs follows, one bone name per vertex")))?;
+	if follows.len() != mesh.positions.len() {
+		return Err(mlua::Error::runtime(format!("part {name}: follows names {} bones for {} vertices", follows.len(), mesh.positions.len())));
+	}
+	let mut found: HashMap<&str, usize> = HashMap::new();
+	let mut map = HashMap::new();
+	for (position, wanted) in mesh.positions.iter().zip(&follows) {
+		let bone = match found.get(wanted.as_str()) {
+			Some(&bone) => bone,
+			None => {
+				let bone = rig.iter().position(|b| &b.name == wanted).ok_or_else(|| mlua::Error::runtime(format!("part {name}: no bone {wanted} (add it before its parts)")))?;
+				found.insert(wanted, bone);
+				bone
+			}
+		};
+		map.entry(modelkit_kernel::skin::key(*position)).or_insert([(bone, 1.0), (0, 0.0), (0, 0.0), (0, 0.0)]);
+	}
+	Ok(Rc::new(Skin::Weights(map)))
 }

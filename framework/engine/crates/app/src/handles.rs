@@ -158,6 +158,19 @@ impl UserData for ImageHandle {
 			image.pixels[y * width + x] = [r, g, b];
 			Ok(())
 		});
+		// Sets a pixel's opacity (0 clear .. 1 solid), giving the image an
+		// alpha channel, solid everywhere else, on first use: for parts whose
+		// faces carry their own UVs into an image the script draws itself,
+		// such as a hair-card atlas.
+		methods.add_method("setAlpha", |_, this, (x, y, a): (usize, usize, f32)| {
+			let mut image = this.0.borrow_mut();
+			if x >= image.width || y >= image.height {
+				return Err(mlua::Error::runtime(format!("pixel ({x}, {y}) outside {}x{}", image.width, image.height)));
+			}
+			let (width, count) = (image.width, image.width * image.height);
+			image.alpha.get_or_insert_with(|| vec![1.0; count])[y * width + x] = a.clamp(0.0, 1.0);
+			Ok(())
+		});
 		methods.add_method("width", |_, this, ()| Ok(this.0.borrow().width));
 		methods.add_method("height", |_, this, ()| Ok(this.0.borrow().height));
 		methods.add_method("get", |_, this, (x, y): (usize, usize)| {

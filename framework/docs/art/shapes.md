@@ -68,3 +68,19 @@ A part in a rigged model moves with bones in one of two ways
   nearby bones, for one mesh that bends. Give the mesh enough vertices
   where it bends: a vertex moves, a flat face between vertices only
   stretches. Keep bone names apart from part names.
+- Given: `model.part(name, mesh, image, { skin = "given", follows = {...} })`
+  names each vertex's bone, one name per vertex in vertex order, and each
+  vertex follows that bone alone. For one mesh laid over several rigid
+  parts, such as hair cards over every piece of every leg.
+
+## Drawn atlases
+
+A part can skip the unwrap and paint and draw its own texture instead:
+build its mesh with `Mesh.new()`, give each face its UVs
+(`mesh:face(verts, { u1, v1, u2, v2, ... })`), draw the image with
+`image:set(x, y, r, g, b)` and `image:setAlpha(x, y, a)` (which gives the
+image an alpha channel), and add it with `model.part` directly, not
+`part()`. Many faces can then share one detailed region of the image: hair
+cards, leaves or grass blades all mapped onto a few drawn strips get far
+more texels each than a unique atlas would give them. Pixels are 0-based
+with y = 0 at the bottom, matching v. Call `mesh:setSmooth(angle)` yourself.
