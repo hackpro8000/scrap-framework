@@ -2,9 +2,10 @@
 // One unit is one stud; in Studio's 3D Importer, set the file's scale unit to
 // Stud. glTF is Y up, so our Z-up positions turn (x, y, z) into (x, z, -y).
 // Parts sharing a group sit under one parent node, so the game can show one
-// group (like a fill level) at a time. With bones, every part is skinned
-// rigidly to its one bone and the joints come in as Studio Bones, each named
-// <Name>Bone after the script's model.bone(name). scene::read reads it back.
+// group (like a fill level) at a time. With bones, every part is skinned,
+// rigidly to its one bone or softly vertex by vertex (skin.rs), and the joints
+// come in as Studio Bones, each named <Name>Bone after the script's
+// model.bone(name). scene::read reads it back.
 
 use crate::anim::{self, Clip};
 use crate::{Bone, Part};
@@ -64,11 +65,15 @@ pub fn write(parts: &[Part], bones: &[Bone], clips: &[Clip]) -> Vec<u8> {
 			uvs.extend(uv.iter().flat_map(|x| x.to_le_bytes()));
 		}
 		let mut skinning = String::new();
-		if let Some(bone) = part.bone {
-			let joints: Vec<u8> = (0..corners.len()).flat_map(|_| [bone as u8, 0, 0, 0]).collect();
-			let weights: Vec<u8> = (0..corners.len()).flat_map(|_| [1f32, 0.0, 0.0, 0.0]).flat_map(|w| w.to_le_bytes()).collect();
+		// Rigid: every corner the one bone; soft: each corner its own (skin.rs).
+		let streams = match (part.bone, part.skin.as_deref()) {
+			(Some(bone), _) => Some(((0..corners.len()).flat_map(|_| [bone as u8, 0, 0, 0]).collect(), 5121, (0..corners.len()).flat_map(|_| [1f32, 0.0, 0.0, 0.0]).flat_map(|w| w.to_le_bytes()).collect())),
+			(None, Some(skin)) => Some(crate::skin::streams(skin, &corners, bones)),
+			(None, None) => None,
+		};
+		if let Some((joints, component, weights)) = streams {
 			let view = push_view(&mut bin, &joints, Some(34962));
-			accessors.push(format!("{{\"bufferView\":{view},\"componentType\":5121,\"count\":{},\"type\":\"VEC4\"}}", corners.len()));
+			accessors.push(format!("{{\"bufferView\":{view},\"componentType\":{component},\"count\":{},\"type\":\"VEC4\"}}", corners.len()));
 			let joints_at = accessors.len() - 1;
 			let view = push_view(&mut bin, &weights, Some(34962));
 			accessors.push(format!("{{\"bufferView\":{view},\"componentType\":5126,\"count\":{},\"type\":\"VEC4\"}}", corners.len()));
@@ -155,7 +160,7 @@ pub fn write(parts: &[Part], bones: &[Bone], clips: &[Clip]) -> Vec<u8> {
 			base + 2,
 			base + 3
 		));
-		let skin = if part.bone.is_some() { ",\"skin\":0" } else { "" };
+		let skin = if part.bone.is_some() || part.skin.is_some() { ",\"skin\":0" } else { "" };
 		// A part left out of previews says so, for scene::read; importers ignore extras.
 		let hidden = if part.preview { "" } else { ",\"extras\":{\"preview\":false}" };
 		nodes.push(format!("{{\"name\":\"{}\",\"mesh\":{index}{skin}{hidden}}}", part.name));

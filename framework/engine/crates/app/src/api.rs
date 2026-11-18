@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use mlua::{AnyUserData, Lua, Table, Value};
+use modelkit_kernel::skin::Skin;
 
 use crate::image::Image;
 use crate::mesh::{self, Mesh};
@@ -117,6 +118,10 @@ pub(crate) fn install_api(lua: &Lua, dir: &Path, parts: Rc<RefCell<Vec<Part>>>, 
 			Ok(name)
 		})?,
 	)?;
+	// model.part(name, mesh, image, {group?, preview?, emissive?, bone? | skin?,
+	// bones?}) adds a part. In a rigged model it follows either `bone` whole
+	// (rigid) or, with skin = "nearest" or "smooth", each vertex its own bones
+	// (soft; only those named in `bones` if given); see kernel/src/skin.rs.
 	model_api.set(
 		"part",
 		lua.create_function(move |_, (name, mesh, image, options): (String, AnyUserData, AnyUserData, Option<Table>)| {
@@ -127,8 +132,16 @@ pub(crate) fn install_api(lua: &Lua, dir: &Path, parts: Rc<RefCell<Vec<Part>>>, 
 				None => None,
 				Some(b) => Some(bones.borrow().iter().position(|x| x.name == b).ok_or_else(|| mlua::Error::runtime(format!("no bone {b} (add it before its parts)")))?),
 			};
+			let skin = match &options {
+				Some(options) => soft_skin(&name, options, &bones.borrow())?,
+				None => None,
+			};
+			if bone.is_some() && skin.is_some() {
+				return Err(mlua::Error::runtime(format!("part {name}: give it bone or skin, not both")));
+			}
 			parts.borrow_mut().push(Part {
 				bone,
+				skin,
 				name,
 				group,
 				preview,
@@ -222,4 +235,30 @@ pub(crate) fn install_api(lua: &Lua, dir: &Path, parts: Rc<RefCell<Vec<Part>>>, 
 		})?,
 	)?;
 	Ok(())
+}
+
+// model.part's soft skin options: `skin` ("nearest" or "smooth") and the
+// candidate `bones` it may use (every bone when left out). The weights are
+// worked out once the script ends (model.rs), when every vertex is in place.
+fn soft_skin(name: &str, options: &Table, rig: &[Bone]) -> mlua::Result<Option<Rc<Skin>>> {
+	let listed = options.get::<Option<Vec<String>>>("bones")?;
+	let Some(rule) = options.get::<Option<String>>("skin")? else {
+		if listed.is_some() {
+			return Err(mlua::Error::runtime(format!("part {name}: bones lists a soft skin's bones; give skin too")));
+		}
+		return Ok(None);
+	};
+	let smooth = match rule.as_str() {
+		"nearest" => false,
+		"smooth" => true,
+		other => return Err(mlua::Error::runtime(format!("part {name}: skin is \"nearest\" or \"smooth\", not \"{other}\""))),
+	};
+	if listed.as_ref().is_some_and(|list| list.is_empty()) {
+		return Err(mlua::Error::runtime(format!("part {name}: bones is empty; leave it out to use every bone")));
+	}
+	let mut bones = Vec::new();
+	for wanted in listed.unwrap_or_default() {
+		bones.push(rig.iter().position(|b| b.name == wanted).ok_or_else(|| mlua::Error::runtime(format!("part {name}: no bone {wanted} (add it before its parts)")))?);
+	}
+	Ok(Some(Rc::new(Skin::Rule { smooth, bones })))
 }

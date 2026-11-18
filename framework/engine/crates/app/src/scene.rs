@@ -89,10 +89,10 @@ pub fn read(file: Vec<u8>) -> Result<Scene, String> {
 		let corners: Vec<Corner> = (0..count)
 			.map(|i| stored_corner([positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]], [normals[3 * i], normals[3 * i + 1], normals[3 * i + 2]], [uvs[2 * i], uvs[2 * i + 1]]))
 			.collect();
-		// Rigid skin: every corner follows the same one bone.
-		let bone = match attributes.get("JOINTS_0").index() {
-			Some(at) => Some(first_joint(&gltf, bin, at)?),
-			None => None,
+		// Rigid skin (every corner the same one bone) or soft (skin.rs).
+		let (bone, skin) = match attributes.get("JOINTS_0").index() {
+			Some(at) => crate::skin::read_back(&corners, &joint_list(&gltf, bin, at)?, &floats(&gltf, bin, need("WEIGHTS_0")?)?).map_err(|e| format!("part {name}: {e}"))?,
+			None => (None, None),
 		};
 		let material = gltf.get("materials").at(primitive.get("material").index().unwrap_or(usize::MAX));
 		let emissive = material.get("extensions").get("KHR_materials_emissive_strength").get("emissiveStrength").number().unwrap_or(0.0) as f32;
@@ -124,6 +124,7 @@ pub fn read(file: Vec<u8>) -> Result<Scene, String> {
 			mesh: Rc::new(RefCell::new(rebuild(&corners, &triangles))),
 			image: maps[map].image.clone(),
 			bone,
+			skin,
 		});
 	}
 
@@ -306,14 +307,16 @@ fn indices(gltf: &Json, bin: &[u8], index: usize) -> Result<Vec<u32>, String> {
 		.collect())
 }
 
-// The bone a rigidly skinned part follows: its first corner's first joint.
-fn first_joint(gltf: &Json, bin: &[u8], index: usize) -> Result<usize, String> {
-	let (bytes, _, _, component) = accessor(gltf, bin, index)?;
-	match (component, bytes) {
-		(5121, [joint, ..]) => Ok(*joint as usize),
-		(5123, [low, high, ..]) => Ok(u16::from_le_bytes([*low, *high]) as usize),
-		_ => Err(format!("accessor {index} isn't joints")),
-	}
+// Every corner's four joints, as JOINTS_0 stores them (bytes or shorts).
+fn joint_list(gltf: &Json, bin: &[u8], index: usize) -> Result<Vec<usize>, String> {
+	let (bytes, count, width, component) = accessor(gltf, bin, index)?;
+	let size = match component {
+		5121 => 1,
+		5123 => 2,
+		_ => return Err(format!("accessor {index} isn't joints")),
+	};
+	let bytes = bytes.get(..count * width * size).ok_or(format!("accessor {index} is cut short"))?;
+	Ok(bytes.chunks_exact(size).map(|b| if size == 2 { u16::from_le_bytes([b[0], b[1]]) as usize } else { b[0] as usize }).collect())
 }
 
 // Just enough JSON for glTF: what glb::write emits, plus escapes in strings.

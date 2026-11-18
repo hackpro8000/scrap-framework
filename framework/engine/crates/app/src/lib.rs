@@ -53,6 +53,7 @@ mod model;
 mod plugin;
 mod scene;
 mod shots;
+mod skin;
 pub mod work;
 
 use std::path::{Path, PathBuf};

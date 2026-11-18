@@ -7,3 +7,4 @@ pub mod kernel;
 pub mod mesh;
 pub mod part;
 pub mod progress;
+pub mod skin;

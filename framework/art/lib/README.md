@@ -40,7 +40,9 @@ helper). Called once at the end of a model. `part()` has already built,
 smoothed and unwrapped each mesh and made its image; `finishParts()` paints
 every entry in `parts` (an entry with `emissive` is already painted) and
 hands each to the engine with
-`model.part(entry.name, entry.mesh, entry.image, { bone = entry.bone, preview = true, emissive = entry.emissive })`.
+`model.part(entry.name, entry.mesh, entry.image, { bone = entry.bone, skin = entry.skin, bones = entry.bones, preview = true, emissive = entry.emissive })`.
+A kit that leaves out `skin` and `bones` still builds rigid and unrigged
+models, but a soft-skinned part then fails the rigged model's check.
 
 `parts` (defined in `50-warp.luau`) lists the parts in the order they were
 made. Each entry holds:
@@ -48,7 +50,8 @@ made. Each entry holds:
 | Field | Type | Set by | Meaning |
 | --- | --- | --- | --- |
 | `name` | string | `part()` | The part's name; a chunk is `<name>_<cx>_<cy>_<cz>`. |
-| `bone` | string? | `part()` | The bone it follows, or nil. |
+| `bone` | string? | `part()` | The bone it follows whole (rigid skin), or nil. `part()`'s second argument is this name. |
+| `skin`, `bones` | string?, {string}? | `part()` | Soft skin: when `part()`'s second argument is a table `{ skin = "nearest" \| "smooth", bones = {...}? }`, its two fields land here and `bone` is nil. Each vertex follows its own bones (`framework/docs/art/pipeline.md`, `model.bone`). |
 | `mesh` | Mesh | `part()` | Built, warped unless `rust == 0` or `flat`, smoothed, unwrapped. |
 | `image` | Image | `part()` | Square, filled with `color`; sized by the `texture` argument, else the texel density, else `TEXTURE`. |
 | `emissive` | number? | `part()` | Glow strength; such a part is already painted with `entry.paint`. |

@@ -15,6 +15,8 @@ use modelkit_anim::anim::Pose;
 use modelkit_kernel::image::Image;
 use modelkit_kernel::part::Part;
 
+use crate::posing::Posing;
+
 const BACKGROUND: [f32; 3] = [0.36, 0.38, 0.42];
 const SUPERSAMPLE: usize = 2;
 // How much of an emissive surface's glow spills around it in previews.
@@ -644,16 +646,13 @@ fn mip_chains(images: &[&Image], keys: &[usize]) -> Vec<Arc<Mips>> {
 
 // The posed box around the corners a mesh's triangles use, or None when it
 // makes no triangles.
-fn part_box(mesh: &Mesh, pose: Option<&Pose>) -> Option<(Vec3, Vec3)> {
+fn part_box(mesh: &Mesh, posing: Posing) -> Option<(Vec3, Vec3)> {
 	let mut low = [f64::MAX; 3];
 	let mut high = [f64::MIN; 3];
 	let mut any = false;
 	for face in mesh.faces.iter().filter(|face| face.verts.len() >= 3) {
 		for &vert in &face.verts {
-			let p = match pose {
-				Some(pose) => pose.apply(mesh.positions[vert]),
-				None => mesh.positions[vert],
-			};
+			let p = posing.position(mesh.positions[vert]);
 			for axis in 0..3 {
 				low[axis] = low[axis].min(p[axis]);
 				high[axis] = high[axis].max(p[axis]);
@@ -878,7 +877,7 @@ fn draw_fast(parts: &[&Part], skin: &[Pose], view: &View) -> (Frame, Stages) {
 	// Meshes and poses as plain shared references, so threads can read them.
 	let mesh_borrows: Vec<Ref<Mesh>> = parts.iter().map(|part| part.mesh.borrow()).collect();
 	let meshes: Vec<&Mesh> = mesh_borrows.iter().map(|mesh| &**mesh).collect();
-	let poses: Vec<Option<&Pose>> = parts.iter().map(|part| part.bone.and_then(|b| skin.get(b))).collect();
+	let poses: Vec<Posing> = parts.iter().map(|part| Posing::of(part, skin)).collect();
 	let boxes = parallel_map(parts.len(), |i| part_box(meshes[i], poses[i]));
 
 	// The model's bounds are the bounds of every part's corners, as the
@@ -967,10 +966,9 @@ fn draw_fast(parts: &[&Part], skin: &[Pose], view: &View) -> (Frame, Stages) {
 	let lists = parallel_map(kept.len(), |k| {
 		let i = kept[k];
 		let mut list = meshes[i].triangles();
-		if let Some(pose) = poses[i] {
+		if !poses[i].is_still() {
 			for corner in list.iter_mut().flatten() {
-				corner.position = pose.apply(corner.position);
-				corner.normal = pose.turn(corner.normal);
+				poses[i].corner(corner);
 			}
 		}
 		list
@@ -1118,11 +1116,9 @@ fn draw_reference(parts: &[&Part], skin: &[Pose], view: &View) -> Frame {
 		.enumerate()
 		.map(|(index, part)| {
 			let mut list = part.mesh.borrow().triangles();
-			if let Some(pose) = part.bone.and_then(|b| skin.get(b)) {
-				for corner in list.iter_mut().flatten() {
-					corner.position = pose.apply(corner.position);
-					corner.normal = pose.turn(corner.normal);
-				}
+			let posing = Posing::of(part, skin);
+			for corner in list.iter_mut().flatten() {
+				posing.corner(corner);
 			}
 			(list, index as u32, part)
 		})

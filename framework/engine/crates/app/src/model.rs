@@ -58,15 +58,23 @@ pub(crate) fn run(dir: &Path, turntable: usize, size: usize, closeups: &[Closeup
 	}
 	let scripted = started.elapsed();
 
+	let bones = bones.borrow();
+	// Soft skins are weighed now that every bone and vertex is in place.
+	for part in parts.borrow_mut().iter_mut() {
+		if let Some(skin) = part.skin.as_ref().map(|skin| skin.weigh(&part.mesh.borrow(), &bones)) {
+			part.skin = Some(Rc::new(skin));
+		}
+	}
 	let parts = parts.borrow();
 	if parts.is_empty() {
 		return Err("model.luau added no parts (call model.part)".into());
 	}
-	let bones = bones.borrow();
-	if !bones.is_empty() {
-		if let Some(loose) = parts.iter().find(|p| p.bone.is_none()) {
-			return Err(format!("part {} has no bone; a rigged model needs one on every part", loose.name));
+	if bones.is_empty() {
+		if let Some(soft) = parts.iter().find(|p| p.skin.is_some()) {
+			return Err(format!("part {} has a skin but the model has no bones (add them with model.bone)", soft.name));
 		}
+	} else if let Some(loose) = parts.iter().find(|p| p.bone.is_none() && p.skin.is_none()) {
+		return Err(format!("part {} has no bone or skin; a rigged model needs one on every part", loose.name));
 	}
 	progress::say(&format!("writing {name}.glb and {} textures", parts.len()));
 	let writing = Instant::now();
@@ -212,9 +220,10 @@ const CHUNK_LIMIT: usize = 19_000_000;
 // chunks/<Name>Chunks.luau listing them with their anchor parts, in Roblox
 // coordinates (Y up), for the Studio placer (framework/studio/PlaceMap.luau).
 // A shard's tag (S3_) keeps its files and keys apart from the other shards'.
+// Chunks carry no rig, so a rigged model (rigid or soft skin) is refused.
 fn write_chunks(dir: &Path, name: &str, tag: &str, parts: &[Part], rigged: bool) -> Result<(), String> {
 	if rigged {
-		return Err("--chunks is for layouts; a rigged model can't be split".into());
+		return Err("--chunks is for layouts; a rigged model (bones, rigid or soft skin) can't be split".into());
 	}
 	let out = dir.join("chunks");
 	if out.exists() {

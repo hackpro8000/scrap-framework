@@ -9,6 +9,6 @@ local function finishParts()
 		if not entry.emissive then
 			entry.mesh:paint(entry.image, entry.paint)
 		end
-		model.part(entry.name, entry.mesh, entry.image, { bone = entry.bone, preview = true, emissive = entry.emissive })
+		model.part(entry.name, entry.mesh, entry.image, { bone = entry.bone, skin = entry.skin, bones = entry.bones, preview = true, emissive = entry.emissive })
 	end
 end

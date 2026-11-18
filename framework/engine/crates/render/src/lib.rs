@@ -3,4 +3,5 @@
 //! what a preview eye can resolve. Depends on the kernel and anim crates.
 
 pub mod detail;
+pub mod posing;
 pub mod render;

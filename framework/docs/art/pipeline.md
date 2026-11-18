@@ -148,13 +148,32 @@ Z-up, 1 unit = 1 stud. Any small item model is a short reference.
   `engine/src/main.rs`; the kit's `finishParts()` usually calls them.
 - `model.part(name, mesh, image, {group, preview})`. Parts sharing a group
   are one variant (a fill level, an upgrade tier); `preview` picks what the
-  preview shows. `bone` names the bone the part follows.
+  preview shows. In a rigged model a part also takes `bone` or `skin`
+  (below).
 - `model.bone(name, {at = {x, y, z}, parent = "Name"?})` adds a rig joint
   pivoting at `at`. Add bones before the parts that use them. Once a model
-  has bones, every part needs one: each part follows its bone rigidly, and
+  has bones, every part needs `bone` or `skin`, never both:
+  - `bone = "Name"` (rigid skin): the whole part follows that one bone, like
+    a limb on a hinge. Use it for hard pieces that move whole: doors, wheels,
+    arms of a bot.
+  - `skin = "nearest"` (soft skin): each vertex follows the one bone whose
+    head is nearest to it. Use it when separate regions of one mesh move on
+    their own, like the corners of a wobbling cube.
+  - `skin = "smooth"` (soft skin): each vertex is weighted over its nearest
+    bones' heads, up to four, by inverse squared distance (influences under
+    2% dropped); a vertex on a bone's head follows that bone alone. Use it
+    where one mesh bends, like a tail, a cable or a belly.
+  - `bones = {"A", "B", ...}` with `skin` limits which bones a vertex may
+    follow (so a hand never sticks to a nearby leg); without it every bone
+    can.
+
   Studio imports the joints as Bones for the Animation Editor, each named
   `<name>Bone`: Studio turns a bone that shares a part's name into a Motor6D
-  and drops the parts skinned to it.
+  and drops the parts skinned to it, so keep bone names apart from part
+  names. A soft-skinned part comes in as one MeshPart with the Bones inside
+  it; game code bends it by setting each `Bone.Transform`. Clip previews
+  (`--clip`) bend soft parts the same way (linear blend skinning). A rigged
+  model can't be split with `--chunks`. Example: `art/src/items/WobbleCube.luau`.
 - `model.clip(name, {length, keys = {Bone = {{t, rot?, pos?}, ...}}})` adds
   an animation. Besides going into the GLB, a rigged model's clips are
   written to `<Name>Clips.luau`, and `framework/scripts/build-model.sh`

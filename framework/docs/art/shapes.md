@@ -24,7 +24,7 @@ or use other names; check its own docs first.
 | `gear(mesh, cx, cy, cz, radius, thick, teeth, axis)` | spur gear with shaft hole |
 | `belt(mesh, axis, ax, ay, az, ra, bx, by, bz, rb, thick)` | drive belt round two pulleys |
 | `rope(mesh, points, radius)` / `lashing(...)` | twisted rope / rope round a box |
-| `part(name, bone, color, build, ...)` | adds a part with its look |
+| `part(name, bone, color, build, ...)` | adds a part with its look; in a rigged model `bone` is the bone it follows whole, or `{ skin = "nearest" \| "smooth", bones = {...}? }` to bend it vertex by vertex (see Rigging) |
 | `chunkedPart(...)` | large meshes split into texture-sized chunks |
 | `finishParts()` | shades parts with each other as occluders, then adds them |
 
@@ -55,3 +55,16 @@ Operations (`EditOps.luau`, header lists them all): `extrude`, `inset`,
   than modelling it.
 - No helper cuts one shape out of another yet. Make holes with `inset` and
   `extrude` inward, or with `ring`/`tube` walls.
+
+## Rigging
+
+A part in a rigged model moves with bones in one of two ways
+(`framework/docs/art/pipeline.md`, `model.bone`):
+
+- Rigid: `part("Lid", "Hinge", ...)` moves the whole part with bone `Hinge`.
+  Build hard pieces that move whole as their own parts.
+- Soft: `part("Cube", { skin = "nearest" }, ...)` lets each vertex follow
+  its nearest bone; `{ skin = "smooth", bones = {...} }` blends up to four
+  nearby bones, for one mesh that bends. Give the mesh enough vertices
+  where it bends: a vertex moves, a flat face between vertices only
+  stretches. Keep bone names apart from part names.
