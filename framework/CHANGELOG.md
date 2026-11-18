@@ -7,6 +7,10 @@ release is marked:
 - **look-changing**: models may look different; rebuild and review previews.
 - **plugin-breaking**: a game's plugins or style kit must change to build.
 
+## 0.2.0 (safe) - 2026-11-18
+
+Rigging: a part's vertices can each follow their own bone. model.part takes skin = "nearest" or "smooth" (and bones = {...} to limit which), beside the rigid bone = "Name"; the GLB carries per-vertex joints and weights, and scene reading and clip previews bend soft parts. Existing models build byte-identical.
+
 ## 0.1.1 (safe) - 2026-11-13
 
 Previews built with --normals send their normal and roughness maps back (the copy looked in an empty path).
