@@ -4,10 +4,13 @@
 #
 #   framework/scripts/agent-stats.sh [--since <UTC timestamp>] <label>=<log file> ...
 #
-# A log file is the `output_file` path the Agent tool prints at launch.
+# A log file is the `output_file` path the Agent tool prints at launch, or
+# an Antigravity subagent's transcript (the logAbsoluteUri its parent is
+# given when it starts it), read as a Claude Code log (lib/agent-log.sh).
 # --since counts only events at or after that time (2026-11-11T01:00:11), for
 # a follow-up sent to an agent that already ran.
 set -euo pipefail
+source "$(dirname "$0")/lib/agent-log.sh"
 
 since=""
 if [ "${1:-}" = "--since" ]; then
@@ -26,7 +29,7 @@ for pair in "$@"; do
 		echo "agent-stats: no log at $log" >&2
 		exit 1
 	fi
-	jq -rs --arg label "$label" --arg since "$since" '
+	agent_log_lines "$log" | jq -rs --arg label "$label" --arg since "$since" '
 		def seconds: (.[0:19] + "Z" | fromdate) + (.[20:23] | tonumber) / 1000;
 		def usage: .message.usage;
 		def context: usage | .input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens;
@@ -41,5 +44,5 @@ for pair in "$@"; do
 			([$calls[] | context] | add),
 			([$calls[] | usage.cache_read_input_tokens] | add),
 			([$calls[] | usage.output_tokens] | add)
-		] | @tsv' "$log"
+		] | @tsv'
 done | column -t -s $'\t' -N run,model,secs,calls,start_ctx,tokens_processed,from_cache,out

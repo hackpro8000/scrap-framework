@@ -1,0 +1,28 @@
+# How long one agent action should take, in seconds. agent-watch.sh flags
+# SLOW the moment an action is still running past its time.
+#
+# Each line: a regular expression, a tab, the seconds. It is matched against
+# "<tool name> <command>" (the command is a Bash call's command line, empty
+# for other tools). The first line that matches wins, so put specific lines
+# above general ones. A game adds its own lines in docs/team/action-times.tsv
+# (same format); those are read first and win.
+
+mcp__robloxstudio-mcp__screen_capture	5
+mcp__robloxstudio-mcp__get_studio_state	5
+mcp__robloxstudio-mcp__list_roblox_studios	5
+mcp__robloxstudio-mcp__get_console_output	5
+mcp__robloxstudio-mcp__start_stop_play	20
+mcp__robloxstudio-mcp__execute_luau	30
+mcp__robloxstudio-mcp__search_asset	15
+mcp__robloxstudio-mcp__	30
+^(Read|Edit|Write|NotebookEdit) 	5
+^(Grep|Glob) 	10
+^ToolSearch 	5
+^Bash (rg|sd|ls|cat|head|tail|wc|jq|git (status|diff|log|show)|echo|mkdir|cp|mv|rm|touch|stat|file|du|md5sum)( |$)	10
+^Bash (stylua|selene)( |$)	20
+^Bash lune run tests/run	30
+^Bash framework/scripts/(review|checkpoint|assemble|watch)-model\.sh	180
+^Bash cargo 	600
+^(Agent|Task|SubagentHandback|SendMessage) 	0
+^Bash 	120
+.*	60
