@@ -7,6 +7,10 @@ release is marked:
 - **look-changing**: models may look different; rebuild and review previews.
 - **plugin-breaking**: a game's plugins or style kit must change to build.
 
+## 0.4.1 (safe) - 2026-11-22
+
+Add framework/scripts/code-map.sh to generate .codemap/overview.md and .codemap/modules.txt
+
 ## 0.4.0 (safe) - 2026-11-22
 
 agent-watch and agent-stats read Antigravity subagent transcripts too; agent-watch flags SLOW actions (lib/action-times.tsv) and can watch the Lead (--session)
